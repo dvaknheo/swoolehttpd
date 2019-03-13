@@ -1,0 +1,26 @@
+{
+    "name": "dnmvcs/swoolehttpd",
+    "description": "A Swoole Http Server in 2019",
+    "type": "library",
+    "keywords": [
+        "framework",
+		"service",
+		"swoole"
+    ],
+    "homepage": "https://www.github.com/dvaknheo/SwooleHttpd",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "davknheo",
+            "email": "85811616@qq.com"
+        }
+    ],
+	"autoload": {
+        "psr-4": {
+            "DNMVCS\\": "src"
+        }
+    },
+    "require": {
+        "php": ">=7.0.0"
+	}
+}
