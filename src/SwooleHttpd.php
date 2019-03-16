@@ -897,9 +897,11 @@ class SwooleSuperGlobal
 	public $STATICS=[];
 	public $CLASS_STATICS=[];
 
-	public $sessionImplement=null;
 	public $is_inited=false;
-	
+	public function __construct()
+	{
+		SwooleSessionImplement::G();
+	}
 	public function init()
 	{
 		$cid = \Swoole\Coroutine::getuid();
@@ -937,26 +939,21 @@ class SwooleSuperGlobal
 		
 		$this->_FILES=$request->files;
 		
-		if(!$this->sessionImplement){
-			$this->sessionImplement=SwooleSessionImplement::G();
-		}
-		
-		
 		return $this;
 	}
 	public function session_start(array $options=[])
 	{
-		$this->sessionImplement->_Start($options);
-		static::G()->_SESSION=&$this->sessionImplement->data;
+		SwooleSessionImplement::G()->_Start($options);
+		static::G()->_SESSION=&SwooleSessionImplement::G()->data;
 	}
 	public function session_destroy()
 	{
-		$this->sessionImplement->_Destroy();
+		SwooleSessionImplement::G()->_Destroy();
 		static::G()->_SESSION=[];
 	}
 	public function session_set_save_handler($handler)
 	{
-		$this->sessionImplement->setHandler($handler);
+		SwooleSessionImplement::G()->setHandler($handler);
 	}
 	//////////////
 	public function &_GLOBALS($k,$v=null)

@@ -49,11 +49,12 @@ function hello()
 
 $options=[
     'port'=>9528,
-    'http_handler'=>hello,
+    'http_handler'=>'hello',
 ];
 SwooleHttpd::RunQuickly($options);
 ```
 
+浏览器打开 http://127.0.0.1:9528/
 这个例子展现了 $_SERVER 里有的东西
 
 ### 选项

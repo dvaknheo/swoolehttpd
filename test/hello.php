@@ -1,6 +1,8 @@
 <?php
-require ('../src/SwooleHttpd.php');
+
 use DNMVCS\SwooleHttpd;
+require ('../src/tickall.php');
+require ('../src/SwooleHttpd.php');
 
 function hello()
 {
@@ -12,6 +14,6 @@ function hello()
 
 $options=[
     'port'=>9528,
-    'http_handler'=>hello,
+    'http_handler'=>'hello',
 ];
 SwooleHttpd::RunQuickly($options);
