@@ -23,17 +23,6 @@ trait DNSingleton
 	}
 }
 }
-if(!trait_exists('DNMVCS\DNThrowQuickly',false)){
-trait DNThrowQuickly
-{
-	public static function ThrowOn($flag,$message,$code=0)
-	{
-		if(!$flag){return;}
-		$class=static::class;
-		throw new $class($message,$code);
-	}
-}
-}
 if(!trait_exists('DNMVCS\DNClassExt',false)){
 trait DNClassExt
 {
@@ -78,6 +67,18 @@ trait DNClassExt
 	}
 }
 }
+if(!trait_exists('DNMVCS\DNThrowQuickly',false)){
+trait DNThrowQuickly
+{
+	public static function ThrowOn($flag,$message,$code=0)
+	{
+		if(!$flag){return;}
+		$class=static::class;
+		throw new $class($message,$code);
+	}
+}
+}
+
 class SwooleCoroutineSingleton
 {
 	use DNSingleton;
@@ -260,12 +261,11 @@ class SwooleException extends \Exception
 {
 	use DNThrowQuickly;
 }
-class Swoole404Exception extends SwooleException
+class Swoole404Exception
 {
 	use DNThrowQuickly;
 	
 	protected $code=404;
-	
 }
 trait SwooleHttpd_Singleton
 {
@@ -428,7 +428,6 @@ trait SwooleHttpd_SimpleHttpd
 			
 			$response->end();
 		});
-
 		
 		SwooleCoroutineSingleton::EnableCurrentCoSingleton();
 		SwooleContext::G(new SwooleContext())->initHttp($request,$response);
@@ -438,7 +437,6 @@ trait SwooleHttpd_SimpleHttpd
 		}catch(\Throwable $ex){
 			$this->onHttpException($ex);
 		}
-		
 		
 	}
 }
@@ -669,8 +667,8 @@ class SwooleHttpd
 	{
 		$http_handler_root=$this->http_handler_basepath.$this->http_handler_root;
 		$http_handler_root=rtrim($http_handler_root,'/').'/';
-		$document_root=$this->static_root?:rtrim($http_handler_root,'/');
 		
+		$document_root=$this->static_root?:rtrim($http_handler_root,'/');
 		$path=parse_url(SwooleSuperGlobal::G()->_SERVER['REQUEST_URI'],PHP_URL_PATH);
 		
 		return [$path,$document_root];

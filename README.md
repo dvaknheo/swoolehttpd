@@ -253,6 +253,48 @@ SwooleHttpd::  通过使用 SwooleCoroutineSingleton 进一步扩展了 DNSinglt
 
 在协程结束时候，会自动清理所有协程单例。
 
+### 超全局变量和语法代替静态方法
+
+swoole 的协程使得 跨领域的 global ,static, 类内 static 变量不可用，
+我们用替代方法
+
+```php
+use DNMVCS\SwooleHttpd as DN;
+global $n;
+// =>
+$n=&DN::GLOBALS('n');
+
+static $n;
+// =>
+$n=&DN::STATICS('n');  //别漏掉了 &
+
+$n++;
+var_dump($n);
+
+```
+
+```php
+use DNMVCS\SwooleHttpd as DN;
+class B
+{
+    protected static $var=10;
+    public static function foo()
+    {
+        //static::$var++;
+        //var_dump(static::$var);
+        $_=&DN::CLASS_STATICS(static::class,'var');$_   ++;
+        // 把 static::$var 替换成  $_=&DN::CLASS_STATICS(static::class,'var');$_
+        //别漏掉了 &
+        var_dump(DN::CLASS_STATICS(static::class,'var')); // 没等号或 ++ -- 之类非左值不用 &
+    }
+}
+class C extends B
+{
+    protected static $var=100;
+}
+C::foo();C::foo();C::foo();
+```
+
 ## 高级内容
 
 前面是使用者知道就够的内容，后面是高级内容了
