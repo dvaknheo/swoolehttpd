@@ -83,6 +83,7 @@ class SwooleCoroutineSingleton
 {
 	use DNSingleton;
 	protected static $_instances=[];
+	protected static $cid_map=[];
 	
 	public static function ReplaceDefaultSingletonHandler()
 	{
@@ -94,6 +95,7 @@ class SwooleCoroutineSingleton
 	{
 		$cid = \Swoole\Coroutine::getuid();
 		$cid=($cid<=0)?0:$cid;
+		$cid=$cid_map[$cid]??$cid;
 		
 		if($object===null){
 			$me=self::$_instances[$cid][$class]??null;
@@ -128,11 +130,19 @@ class SwooleCoroutineSingleton
 		return static::G()->_DumpString();
 	}
 	
-	public function EnableCurrentCoSingleton()
+	public function EnableCurrentCoSingleton($cid=null)
 	{
+		if($cid===0){return;}
+		if($cid!==null){
+			$current_cid = \Swoole\Coroutine::getuid();
+			self::$cid_map[$cid]=$current_cid;
+			\defer(function()use($cid){
+				unset($cid_map[$cid]);
+			});
+			return;
+		}
 		$cid = \Swoole\Coroutine::getuid();
 		if($cid<=0){return;}
-		
 		if(isset(self::$_instances[$cid])){return;}
 		self::$_instances[$cid]=[];
 		\defer(function(){
@@ -145,6 +155,7 @@ class SwooleCoroutineSingleton
 	{
 		$cid = \Swoole\Coroutine::getuid();
 		if($cid<=0){return;}
+		$cid=$cid_map[$cid]??$cid;
 		
 		foreach($classes as $class){
 			if(!isset(self::$_instances[0][$class])){
@@ -287,7 +298,6 @@ trait SwooleHttpd_Singleton
 	}
 	public function forkMasterInstances($classes,$exclude_classes=[])
 	{
-		$exclude_classes=array_merge($exclude_classes,$this->getDynamicClasses());
 		return SwooleCoroutineSingleton::G()->forkMasterInstances($classes,$exclude_classes);
 	}
 	public function resetInstances()
@@ -411,6 +421,7 @@ trait SwooleHttpd_SimpleHttpd
 		\defer(function(){
 			gc_collect_cycles();
 		});
+		SwooleCoroutineSingleton::EnableCurrentCoSingleton();
 		
 		$InitObLevel=ob_get_level();
 		ob_start(function($str) use($response){
@@ -429,7 +440,6 @@ trait SwooleHttpd_SimpleHttpd
 			$response->end();
 		});
 		
-		SwooleCoroutineSingleton::EnableCurrentCoSingleton();
 		SwooleContext::G(new SwooleContext())->initHttp($request,$response);
 		SwooleSuperGlobal::G(new SwooleSuperGlobal())->init();
 		try{
@@ -587,12 +597,18 @@ class SwooleHttpd
 	}
 	protected function checkOverride($options)
 	{
+		$skip_check_override=$options['skip_check_override']??false;
+		if($skip_check_override){
+			return null;
+		}
 		if(static::class!==self::class){return null;}
 		
 		$base_class=isset($options['base_class'])?$options['base_class']:self::DEFAULT_OPTIONS['base_class'];
 		$base_class=ltrim($base_class,'\\');
 		
 		if(!$base_class || !class_exists($base_class)){return null;}
+		
+		$options['skip_check_override']=true;
 		return static::G($base_class::G())->init($options);
 	}
 	
@@ -784,12 +800,8 @@ class SwooleHttpd
 	/////////////////////////
 	public function init($options,$server=null)
 	{
-		$skip_check_override=$options['skip_check_override']??false;
-		unset($options['skip_check_override']);
-		if(!$skip_check_override){
-			$object=$this->checkOverride($options);
-			if($object){return $object;}
-		}
+		$object=$this->checkOverride($options);
+		if($object){return $object;}
 		
 		$options=array_merge(self::DEFAULT_OPTIONS,$options);
 		
@@ -1005,27 +1017,15 @@ class SwooleSessionImplement
 	{
 		return $this->options[$key]??ini_get('session.'.$key);
 	}
-	public function _Start(array $options=[])
+	protected function getSessionId()
 	{
-		if(!$this->handler){
-			$this->handler=SwooleSessionHandler::G();
-		}
-		
-		$this->is_started=true;
-		
-		SwooleHttpd::register_shutdown_function([$this,'writeClose']);
-		
-		$this->options=$options;
-		
 		$session_name=$this->getOption('name');
-		$session_save_path=session_save_path();
 		
 		$cookies=SwooleHttpd::Request()->cookie??[];
 		$session_id=$cookies[$session_name]??null;
 		if($session_id===null || ! preg_match('/[a-zA-Z0-9,-]+/',$session_id)){
 			$session_id=$this->create_sid();
 		}
-		$this->session_id=$session_id;
 		
 		SwooleHttpd::setcookie($session_name,$this->session_id
 			,$this->getOption('cookie_lifetime')?time()+$this->getOption('cookie_lifetime'):0
@@ -1034,6 +1034,25 @@ class SwooleSessionImplement
 			,$this->getOption('cookie_secure')
 			,$this->getOption('cookie_httponly')
 		);
+		return $session_id;
+	}
+	protected function deleteSessionId()
+	{
+		$session_name=$this->getOption('name');
+		SwooleHttpd::setcookie($session_name,'');
+	}
+	public function _Start(array $options=[])
+	{
+		if(!$this->handler){
+			$this->handler=SwooleSessionHandler::G();
+		}
+		$this->is_started=true;
+		
+		SwooleHttpd::register_shutdown_function([$this,'writeClose']);
+		$this->options=$options;
+		$session_name=$this->getOption('name');
+		$session_save_path=session_save_path();
+		$this->session_id=$this->getSessionId();
 		
 		if($this->getOption('gc_probability') > mt_rand(0,$this->getOption('gc_divisor'))){
 			$this->handler->gc($this->getOption('gc_maxlifetime'));
@@ -1045,10 +1064,10 @@ class SwooleSessionImplement
 	}
 	public function _Destroy()
 	{
-		$session_name=$this->getOption('name');
+		
 		$this->handler->destroy($this->session_id);
 		$this->data=[];
-		SwooleHttpd::setcookie($session_name,'');
+		$this->deleteSessionId();
 		$this->is_started=false;
 	}
 	public function writeClose()
