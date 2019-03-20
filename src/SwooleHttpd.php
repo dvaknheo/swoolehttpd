@@ -1004,7 +1004,7 @@ class SwooleSessionImplement
 	protected $handler=null;
 	protected $session_id='';
 	protected $options;
-	protected $session_name;
+	protected $session_name='';
 	
 	protected $is_started=false;
 	public $data;
@@ -1027,7 +1027,7 @@ class SwooleSessionImplement
 			$session_id=$this->create_sid();
 		}
 		
-		SwooleHttpd::setcookie($session_name,$this->session_id
+		SwooleHttpd::setcookie($session_name,$session_id
 			,$this->getOption('cookie_lifetime')?time()+$this->getOption('cookie_lifetime'):0
 			,$this->getOption('cookie_path')
 			,$this->getOption('cookie_domain')
@@ -1041,6 +1041,10 @@ class SwooleSessionImplement
 		$session_name=$this->getOption('name');
 		SwooleHttpd::setcookie($session_name,'');
 	}
+	protected function registWriteClose()
+	{
+		SwooleHttpd::register_shutdown_function([$this,'writeClose']);
+	}
 	public function _Start(array $options=[])
 	{
 		if(!$this->handler){
@@ -1048,7 +1052,7 @@ class SwooleSessionImplement
 		}
 		$this->is_started=true;
 		
-		SwooleHttpd::register_shutdown_function([$this,'writeClose']);
+		$this->registWriteClose();
 		$this->options=$options;
 		$session_name=$this->getOption('name');
 		$session_save_path=session_save_path();
@@ -1078,7 +1082,7 @@ class SwooleSessionImplement
 	}
 	public function create_sid()
 	{
-		return md5(microtime().mt_rand());
+		return md5(microtime().' '..' '.mt_rand());
 	}
 }
 
