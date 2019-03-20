@@ -1,7 +1,6 @@
 <?php
 
 use DNMVCS\SwooleHttpd;
-require ('../src/tickall.php');
 require ('../src/SwooleHttpd.php');
 
 function hello()
