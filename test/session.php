@@ -1,10 +1,6 @@
 <?php
-
 use DNMVCS\SwooleHttpd;
 require ('../src/SwooleHttpd.php');
-
-
-
 $options=[
     'port'=>9528,
     'http_handler'=>'SessionTest',

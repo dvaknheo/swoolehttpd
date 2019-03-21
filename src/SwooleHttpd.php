@@ -1082,7 +1082,8 @@ class SwooleSessionImplement
 	}
 	public function create_sid()
 	{
-		return md5(microtime().' '..' '.mt_rand());
+		$cid = \Swoole\Coroutine::getuid();
+		return md5(microtime().' '.$cid.' '.mt_rand());
 	}
 }
 
