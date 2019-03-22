@@ -130,7 +130,7 @@ class SwooleCoroutineSingleton
 		return static::G()->_DumpString();
 	}
 	
-	public function EnableCurrentCoSingleton($cid=null)
+	public static function EnableCurrentCoSingleton($cid=null)
 	{
 		if($cid===0){return;}
 		if($cid!==null){
