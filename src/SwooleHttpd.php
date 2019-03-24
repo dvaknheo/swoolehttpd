@@ -441,7 +441,7 @@ trait SwooleHttpd_SimpleHttpd
 		});
 		
 		SwooleContext::G(new SwooleContext())->initHttp($request,$response);
-		SwooleSuperGlobal::G(new SwooleSuperGlobal())->init();
+		SwooleSuperGlobal::G(new SwooleSuperGlobal());
 		try{
 			$this->onHttpRun($request,$response);
 		}catch(\Throwable $ex){
@@ -867,7 +867,7 @@ class SwooleHttpd
 		
 		SwooleCoroutineSingleton::ReplaceDefaultSingletonHandler();
 		static::G($this);
-		SwooleSuperGlobal::G();
+		//SwooleSuperGlobal::G(); NoNeed;
 		
 		if(!defined('DNMVCS_SYSTEM_WRAPPER_INSTALLER')){
 			define('DNMVCS_SYSTEM_WRAPPER_INSTALLER',static::class .'::' .'system_wrapper_get_providers');
@@ -907,10 +907,17 @@ class SwooleSuperGlobal
 	public $STATICS=[];
 	public $CLASS_STATICS=[];
 
+	protected $session_handler=null;
+	protected $session_id='';
+	protected $session_name='';
+	protected $options;
+	
+	protected $is_session_started=false;
+	
 	public $is_inited=false;
 	public function __construct()
 	{
-		SwooleSessionImplement::G();
+		$this->init();
 	}
 	public function init()
 	{
@@ -951,21 +958,7 @@ class SwooleSuperGlobal
 		
 		return $this;
 	}
-	public function session_start(array $options=[])
-	{
-		SwooleSessionImplement::G()->_Start($options);
-		static::G()->_SESSION=&SwooleSessionImplement::G()->data;
-	}
-	public function session_destroy()
-	{
-		SwooleSessionImplement::G()->_Destroy();
-		static::G()->_SESSION=[];
-	}
-	public function session_set_save_handler($handler)
-	{
-		SwooleSessionImplement::G()->setHandler($handler);
-	}
-	//////////////
+
 	public function &_GLOBALS($k,$v=null)
 	{
 		if(!isset($this->GLOBALS[$k])){ $this->GLOBALS[$k]=$v;}
@@ -996,30 +989,18 @@ class SwooleSuperGlobal
 		}
 		return $this->CLASS_STATICS[$k];
 	}
-}
-class SwooleSessionImplement
-{
-	use DNSingleton;
-
-	protected $handler=null;
-	protected $session_id='';
-	protected $options;
-	protected $session_name='';
-	
-	protected $is_started=false;
-	public $data;
-	
-	public function setHandler(\SessionHandlerInterface $handler)
+	////////////////////////////
+	public function session_set_save_handler($handler)
 	{
-		$this->handler=$handler;
+		return $this->session_handler=$handler;
 	}
-	protected function getOption($key)
+	protected function getSessionOption($key)
 	{
 		return $this->options[$key]??ini_get('session.'.$key);
 	}
 	protected function getSessionId()
 	{
-		$session_name=$this->getOption('name');
+		$session_name=$this->getSessionOption('name');
 		
 		$cookies=SwooleHttpd::Request()->cookie??[];
 		$session_id=$cookies[$session_name]??null;
@@ -1028,57 +1009,58 @@ class SwooleSessionImplement
 		}
 		
 		SwooleHttpd::setcookie($session_name,$session_id
-			,$this->getOption('cookie_lifetime')?time()+$this->getOption('cookie_lifetime'):0
-			,$this->getOption('cookie_path')
-			,$this->getOption('cookie_domain')
-			,$this->getOption('cookie_secure')
-			,$this->getOption('cookie_httponly')
+			,$this->getSessionOption('cookie_lifetime')?time()+$this->getSessionOption('cookie_lifetime'):0
+			,$this->getSessionOption('cookie_path')
+			,$this->getSessionOption('cookie_domain')
+			,$this->getSessionOption('cookie_secure')
+			,$this->getSessionOption('cookie_httponly')
 		);
 		return $session_id;
 	}
 	protected function deleteSessionId()
 	{
-		$session_name=$this->getOption('name');
+		$session_name=$this->getSessionOption('name');
 		SwooleHttpd::setcookie($session_name,'');
 	}
 	protected function registWriteClose()
 	{
 		SwooleHttpd::register_shutdown_function([$this,'writeClose']);
 	}
-	public function _Start(array $options=[])
+	public function session_start(array $options=[])
 	{
-		if(!$this->handler){
-			$this->handler=SwooleSessionHandler::G();
+		if(!$this->session_handler){
+			$this->session_handler=SwooleSessionHandler::G();
 		}
-		$this->is_started=true;
-		
-		$this->registWriteClose();
+		$this->is_session_started=true;
 		$this->options=$options;
-		$session_name=$this->getOption('name');
+		$this->registWriteClose();
+		$session_name=$this->getSessionOption('name');
 		$session_save_path=session_save_path();
 		$this->session_id=$this->getSessionId();
 		
-		if($this->getOption('gc_probability') > mt_rand(0,$this->getOption('gc_divisor'))){
-			$this->handler->gc($this->getOption('gc_maxlifetime'));
+		if($this->getSessionOption('gc_probability') > mt_rand(0,$this->getSessionOption('gc_divisor'))){
+			$this->session_handler->gc($this->getSessionOption('gc_maxlifetime'));
 		}
-		$this->handler->open($session_save_path,$session_name);
-		$raw=$this->handler->read($this->session_id);
-		$this->data=unserialize($raw);
-		if(!$this->data){$this->data=[];}
+		$this->session_handler->open($session_save_path,$session_name);
+		$raw=$this->session_handler->read($this->session_id);
+		$this->_SESSION=unserialize($raw);
+		if(!$this->_SESSION){
+			$this->_SESSION=[];
+		}
 	}
-	public function _Destroy()
+	public function session_destroy()
 	{
 		
-		$this->handler->destroy($this->session_id);
-		$this->data=[];
+		$this->session_handler->destroy($this->session_id);
+		$this->_SESSION=[];
 		$this->deleteSessionId();
-		$this->is_started=false;
+		$this->is_session_started=false;
 	}
 	public function writeClose()
 	{
-		if(!$this->is_started){return;}
-		$this->handler->write($this->session_id,serialize($this->data));
-		$this->data=[];
+		if(!$this->is_session_started){return;}
+		$this->session_handler->write($this->session_id,serialize($this->_SESSION));
+		$this->_SESSION=[];
 	}
 	public function create_sid()
 	{
