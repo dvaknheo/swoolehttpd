@@ -416,6 +416,11 @@ trait SwooleHttpd_SimpleHttpd
 	protected function onHttpException($ex){throw new SwooleException("Impelement Me");}
 	protected function onHttpClean(){throw new SwooleException("Impelement Me");}
 	
+	// en...
+	public function initHttp($request,$response)
+	{
+		SwooleContext::G(new SwooleContext())->initHttp($request,$response);
+	}
 	public function onRequest($request,$response)
 	{
 		\defer(function(){
@@ -436,11 +441,10 @@ trait SwooleHttpd_SimpleHttpd
 				ob_end_flush();
 			}
 			SwooleContext::G()->cleanUp();
-			
 			$response->end();
 		});
 		
-		SwooleContext::G(new SwooleContext())->initHttp($request,$response);
+		$this->initHttp($request,$response);
 		SwooleSuperGlobal::G(new SwooleSuperGlobal());
 		try{
 			$this->onHttpRun($request,$response);
@@ -908,7 +912,7 @@ class SwooleSuperGlobal
 	public $CLASS_STATICS=[];
 
 	protected $session_handler=null;
-	protected $session_id='';
+	protected $session_id=null;
 	protected $session_name='';
 	protected $options;
 	
@@ -952,7 +956,7 @@ class SwooleSuperGlobal
 		foreach($request->server as $k=>$v){
 			$this->_SERVER[strtoupper($k)]=$v;
 		}
-		$this->_SERVER['cli_script_filename']=$this->_SERVER['SCRIPT_FILENAME'];
+		$this->_SERVER['cli_script_filename']=$this->_SERVER['SCRIPT_FILENAME']??'';
 		
 		$this->_FILES=$request->files;
 		
@@ -1021,10 +1025,15 @@ class SwooleSuperGlobal
 	{
 		$session_name=$this->getSessionOption('name');
 		SwooleHttpd::setcookie($session_name,'');
+		$this->session_id=null;
 	}
 	protected function registWriteClose()
 	{
-		SwooleHttpd::register_shutdown_function([$this,'writeClose']);
+		//SwooleHttpd::register_shutdown_function([$this,'writeClose']);
+		$self=$this;
+		\defer(function()use($self){
+			$self->writeClose();
+		});
 	}
 	public function session_start(array $options=[])
 	{
@@ -1036,7 +1045,7 @@ class SwooleSuperGlobal
 		$this->registWriteClose();
 		$session_name=$this->getSessionOption('name');
 		$session_save_path=session_save_path();
-		$this->session_id=$this->getSessionId();
+		$this->session_id=$this->session_id??$this->getSessionId();
 		
 		if($this->getSessionOption('gc_probability') > mt_rand(0,$this->getSessionOption('gc_divisor'))){
 			$this->session_handler->gc($this->getSessionOption('gc_maxlifetime'));
@@ -1048,9 +1057,15 @@ class SwooleSuperGlobal
 			$this->_SESSION=[];
 		}
 	}
+	public function session_id($session_id=null)
+	{
+		if(isset($session_id)){
+			$this->session_id=$session_id;
+		}
+		return $this->session_id;
+	}
 	public function session_destroy()
 	{
-		
 		$this->session_handler->destroy($this->session_id);
 		$this->_SESSION=[];
 		$this->deleteSessionId();
