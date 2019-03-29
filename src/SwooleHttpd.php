@@ -526,6 +526,7 @@ class SwooleHttpd
 	protected $auto_clean_autoload=true;
 	protected $old_autoloads=[];
 	
+	public $skip_override=false;
 	public static function RunQuickly(array $options=[],callable $after_init=null)
 	{
 		if(!$after_init){
@@ -541,19 +542,19 @@ class SwooleHttpd
 	}
 	protected function checkOverride($options)
 	{
-		$skip_check_override=$options['skip_check_override']??false;
-		if($skip_check_override){
+		if($this->skip_override){
 			return null;
 		}
-		if(static::class!==self::class){return null;}
-		
 		$base_class=isset($options['base_class'])?$options['base_class']:self::DEFAULT_OPTIONS['base_class'];
 		$base_class=ltrim($base_class,'\\');
 		
-		if(!$base_class || !class_exists($base_class)){return null;}
-		
-		$options['skip_check_override']=true;
-		return static::G($base_class::G())->init($options);
+		if(!$base_class || !class_exists($base_class)){
+			return null;
+		}
+		if(static::class===$base_class){
+			return null;
+		}
+		return static::G($base_class::G());
 	}
 	
 	public function exit_request($code=0)
