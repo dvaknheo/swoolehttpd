@@ -1,7 +1,7 @@
 <?php
 namespace DNMVCS;
-if(!trait_exists('DNMVCS\DNSingleton',false)){
-trait DNSingleton
+if(!trait_exists('DNMVCS\SwooleSingleton',false)){
+trait SwooleSingleton
 {
 	protected static $_instances=[];
 	public static function G($object=null)
@@ -25,7 +25,7 @@ trait DNSingleton
 }
 class SwooleCoroutineSingleton
 {
-	use DNSingleton;
+	use SwooleSingleton;
 	protected static $_instances=[];
 	protected static $cid_map=[];
 	
@@ -155,7 +155,7 @@ class SwooleCoroutineSingleton
 }
 class SwooleContext
 {
-	use DNSingleton;
+	use SwooleSingleton;
 	public $request=null;
 	public $response=null;
 	public $fd=-1;
@@ -467,7 +467,7 @@ trait SwooleHttpd_WebSocket
 }
 class SwooleHttpd
 {
-	use DNSingleton;
+	use SwooleSingleton;
 	
 	use SwooleHttpd_Static;
 	use SwooleHttpd_SimpleHttpd;
@@ -837,7 +837,7 @@ class SwooleHttpd
 
 class SwooleSuperGlobal
 {
-	use DNSingleton;
+	use SwooleSingleton;
 	
 	public $_GET;
 	public $_POST;
@@ -1027,7 +1027,7 @@ class SwooleSuperGlobal
 
 class SwooleSessionHandler implements \SessionHandlerInterface
 {
-	use DNSingleton;
+	use SwooleSingleton;
 	private $savePath;
 	
 	public function open($savePath, $sessionName)
