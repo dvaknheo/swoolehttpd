@@ -21,7 +21,7 @@ class SwooleSuperGlobal
     protected $session_handler=null;
     protected $session_id=null;
     protected $session_name='';
-    protected $options;
+    protected $sessionOptions=[];
     
     protected $is_session_started=false;
     
@@ -117,7 +117,7 @@ class SwooleSuperGlobal
     }
     protected function getSessionOption($key)
     {
-        return $this->options[$key]??ini_get('session.'.$key);
+        return $this->sessionOptions[$key]??ini_get('session.'.$key);
     }
     protected function getSessionId()
     {
@@ -160,7 +160,7 @@ class SwooleSuperGlobal
             $this->session_handler=SwooleSessionHandler::G();
         }
         $this->is_session_started=true;
-        $this->options=$options;
+        $this->sessionOptions=$options;
         $this->registWriteClose();
         $session_name=$this->getSessionOption('name');
         $session_save_path=session_save_path();

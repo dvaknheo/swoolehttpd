@@ -296,10 +296,10 @@ class SwooleHttpd
     public function init($options, $server=null)
     {
         $object=$this->checkOverride($options);
-        if($object){
-			$object->skip_override=true;
-			return $object->init($options);
-		}
+        if ($object) {
+            $object->skip_override=true;
+            return $object->init($options);
+        }
         
         $options=array_merge(self::DEFAULT_OPTIONS, $options);
         

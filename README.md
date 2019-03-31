@@ -328,12 +328,6 @@ resetInstances()
 
     重置 协程为0 的实例覆盖到当前协程，用空的实例，而不是原有实例。
 
-### DNClassExt *DNMVCS 通用*
-
-SwooleHttpd use trait DNClassExt
-
-assignDynamicMethod
-
 ### SwooleHttpd 的预定义宏
 
     DNMVCS_DNSINGLETON_REPALACER        耦合连接，协程单例，替换默认实现
@@ -365,21 +359,17 @@ SwooleHttpd 用的 trait SwooleHttpd_SimpleHttpd .
     404 错误是用 code=404 那个
     没端口会报错
 
-### Swoole404Exception extends SwooleException
+### Swoole404Exception extends \Exception
 
-SwooleHttpd  重写了 G 函数的实现，使得做到协程单例。
-
-### DNSingleton
+### SwooleSingleton
 
 共享 trait，这代码在 DNMVCS 里也有 单例 G 函数
 
-### DNThrowQuickly
-
-共享 trait，这代码在 DNMVCS 里也有 用于快速抛异常
+SwooleHttpd  重写了 G 函数的实现，使得做到协程单例。
 
 ### class SwooleCoroutineSingleton
 
-用于协程单例,把主进程单例复制到协程单例
+    用于协程单例,把主进程单例复制到协程单例
 
     public static function ReplaceDefaultSingletonHandler()
     public static function SingletonInstance($class,$object)
@@ -405,18 +395,17 @@ SwooleHttpd  重写了 G 函数的实现，使得做到协程单例。
 ### class SwooleSuperGlobal
 
     SwooleSuperGlobal 是 Swoole 下 超全局变量 的实现。
+    调用 SwooleSessionHandler ,
 
-    public $sessionImpelement=null;
     public $is_inited=false;
     public function init()
-
-### SwooleSessionImpelement
-
-    SwooleSessionImpelement 是 Swoole 的 session 实现。
-    SwooleSessionImpelement 被 SwooleSuperGlobal 调用， 调用 SwooleSessionHandler ,
-    public function setHandler(\SessionHandlerInterface $handler)
-    public function _Start(array $options=[])
-    public function _Destroy()
+    public function &_GLOBALS($k, $v=null)
+    public function &_STATICS($name, $value=null, $parent=0)
+    public function &_CLASS_STATICS($class_name, $var_name)
+    public function session_set_save_handler($handler)
+    public function session_start(array $options=[])
+    public function session_id($session_id=null)
+    public function session_destroy()
     public function writeClose()
     public function create_sid()
 
@@ -456,7 +445,7 @@ SwooleHttpd  重写了 G 函数的实现，使得做到协程单例。
     SwooleContext 初始化
     SwooleSuperGlobal::G 初始化
 
-    注意代码 SwooleSuperGlobal::G(new SwooleSuperGlobal())->init();
+    注意代码 SwooleSuperGlobal::G(new SwooleSuperGlobal());
     为什么不是 SwooleSuperGlobal::G()；
     因为要确保 SwooleSuperGlobal::G() 得到的单例是 协程内的单例。
 
