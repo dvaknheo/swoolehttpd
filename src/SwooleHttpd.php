@@ -76,22 +76,7 @@ class SwooleHttpd
     {
         $this->http_exception_handler=$exception_handler;
     }
-    protected function checkOverride($options)
-    {
-        if ($this->skip_override) {
-            return null;
-        }
-        $base_class=isset($options['base_class'])?$options['base_class']:self::DEFAULT_OPTIONS['base_class'];
-        $base_class=ltrim($base_class, '\\');
-        
-        if (!$base_class || !class_exists($base_class)) {
-            return null;
-        }
-        if (static::class===$base_class) {
-            return null;
-        }
-        return static::G($base_class::G());
-    }
+    
     
     public function exit_request($code=0)
     {
@@ -291,12 +276,30 @@ class SwooleHttpd
         }
     }
     /////////////////////////
+    protected function checkOverride($options)
+    {
+        if ($this->skip_override) {
+            return null;
+        }
+        $base_class=isset($options['base_class'])?$options['base_class']:self::DEFAULT_OPTIONS['base_class'];
+        $base_class=ltrim($base_class, '\\');
+        
+        if (!$base_class || !class_exists($base_class)) {
+            return null;
+        }
+        if (static::class===$base_class) {
+            return null;
+        }
+        return static::G($base_class::G());
+    }
+    
     public function init($options, $server=null)
     {
         $object=$this->checkOverride($options);
-        if ($object) {
-            return $object;
-        }
+        if($object){
+			$object->skip_override=true;
+			return $object->init($options);
+		}
         
         $options=array_merge(self::DEFAULT_OPTIONS, $options);
         
