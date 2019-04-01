@@ -3,6 +3,7 @@ namespace DNMVCS;
 
 class SwooleHttpd
 {
+    const VERSION = '1.0.2';
     use SwooleSingleton;
     
     use SwooleHttpd_Static;
@@ -12,6 +13,7 @@ class SwooleHttpd
     use SwooleHttpd_SuperGlobal;
     use SwooleHttpd_Singleton;
     use SwooleHttpd_Handler;
+    
     
     const DEFAULT_OPTIONS=[
             'swoole_server'=>null,

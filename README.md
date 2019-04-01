@@ -36,14 +36,13 @@ composer require dnmvcs/swoolehttpd
 
 ```php
 <?php
-require ('../src/SwooleHttpd.php');
 use DNMVCS\SwooleHttpd;
-
+require(__DIR__.'/../autoload.php');
 function hello()
 {
-	echo "<h1> hello ,have a good start.</h1><pre>\n";
-	var_export(SwooleHttpd::SG());
-	echo "</pre>";
+    echo "<h1> hello ,have a good start.</h1><pre>\n";
+    var_export(SwooleHttpd::SG());
+    echo "</pre>";
     return true;
 }
 
@@ -259,7 +258,10 @@ swoole 的协程使得 跨领域的 global ,static, 类内 static 变量不可�
 我们用替代方法
 
 ```php
+<?php
 use DNMVCS\SwooleHttpd as DN;
+require (__DIR__.'/../autoload.php');
+
 global $n;
 // =>
 $n=&DN::GLOBALS('n');
@@ -271,10 +273,6 @@ $n=&DN::STATICS('n');  //别漏掉了 &
 $n++;
 var_dump($n);
 
-```
-
-```php
-use DNMVCS\SwooleHttpd as DN;
 class B
 {
     protected static $var=10;
@@ -295,6 +293,15 @@ class C extends B
 C::foo();C::foo();C::foo();
 ```
 
+输出
+
+```text
+int(1)
+int(101)
+int(102)
+int(103)
+```
+
 ## 高级内容
 
 前面是使用者知道就够的内容，后面是高级内容了
@@ -308,9 +315,6 @@ init($options=[])
 run()
 
     运行，运行后进入 swoole_http_server
-__call($name, $arguments) *DNMVCS 也适用*
-
-    配合 assignDymanicMethod
 set_http_exception_handler($ex)
 
     设置异常
@@ -344,6 +348,7 @@ SwooleHttpd 用的 trait SwooleHttpd_SimpleHttpd .
     protected function onHttpClean(){}
 
     public function onRequest($request,$response)
+    初始化 SwooleContext 和一些处理。
 
 ### 协程单例方法
 
@@ -395,6 +400,7 @@ SwooleHttpd  重写了 G 函数的实现，使得做到协程单例。
 ### class SwooleSuperGlobal
 
     SwooleSuperGlobal 是 Swoole 下 超全局变量 的实现。
+    同时处理 session
     调用 SwooleSessionHandler ,
 
     public $is_inited=false;
