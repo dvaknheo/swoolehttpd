@@ -17,7 +17,7 @@
     ],
 	"autoload": {
         "psr-4": {
-            "DNMVCS\\": "src"
+            "SwooleHttpd\\": "src"
         }
     },
     "require": {

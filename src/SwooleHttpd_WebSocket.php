@@ -1,5 +1,5 @@
 <?php
-namespace DNMVCS;
+namespace SwooleHttpd;
 
 trait SwooleHttpd_WebSocket
 {
