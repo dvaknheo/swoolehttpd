@@ -1,7 +1,7 @@
 <?php
 spl_autoload_register(function ($class) {
     $path=__DIR__.'/src/';
-    $namespace='DNMVCS\\';
+    $namespace='SwooleHttpd\\';
     if (strncmp($namespace, $class, strlen($namespace)) !== 0) {
         return false;
     }
