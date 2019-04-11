@@ -1,5 +1,5 @@
 <?php
-use DNMVCS\SwooleHttpd;
+use SwooleHttpd\SwooleHttpd;
 require(__DIR__.'/../autoload.php');
 function hello()
 {
