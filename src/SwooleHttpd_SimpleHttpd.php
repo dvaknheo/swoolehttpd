@@ -26,32 +26,31 @@ trait SwooleHttpd_SimpleHttpd
         \defer(function () {
             gc_collect_cycles();
         });
-        SwooleCoroutineSingleton::EnableCurrentCoSingleton();
+        SwooleCoroutineSingleton::EnableCurrentCoSingleton(); // remark ,here has a defer
         
-        $InitObLevel=ob_get_level();
-        ob_start(function ($str) use ($response) {
-            if (''===$str) {
-                return;
-            } // stop warnning;
-            $response->write($str);
-        });
-        
-        \defer(function () use ($response,$InitObLevel) {
-            SwooleContext::G()->onShutdown();
-            $this->onHttpClean();
+        \defer(function () {
+            $InitObLevel=0;
             for ($i=ob_get_level();$i>$InitObLevel;$i--) {
                 ob_end_flush();
             }
             SwooleContext::G()->cleanUp();
-            $response->end();
         });
-        
+        \defer(function () {
+            SwooleContext::G()->onShutdown();
+        });
+        ob_start(function ($str){
+            if (''===$str) {
+                return;
+            }
+            SwooleContext::G()->response->end($str);
+        });
         $this->initHttp($request, $response);
-        SwooleSuperGlobal::G(new SwooleSuperGlobal());
+        SwooleSuperGlobal::G(new SwooleSuperGlobal()); //TODO 
         try {
             $this->onHttpRun($request, $response);
         } catch (\Throwable $ex) {
             $this->onHttpException($ex);
         }
+        $this->onHttpClean();
     }
 }

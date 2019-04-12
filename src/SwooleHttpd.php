@@ -329,16 +329,17 @@ class SwooleHttpd
             $this->check_swoole();
             
             if (!$options['port']) {
-                echo 'DNMVCS swoole mode: No port ,set the port';
+                echo 'SwooleHttpd: No port ,set the port';
                 exit;
             }
             if (!$options['websocket_handler']) {
-                $this->server=new \swoole_http_server($options['host'], $options['port']);
+                $this->server=new \Swoole\Http\Server($options['host'], $options['port']);
             } else {
-                $this->server=new \swoole_websocket_server($options['host'], $options['port']);
+                echo "SwooleHttpd: use WebSocket";
+                $this->server=new \Swoole\Websocket\Server($options['host'], $options['port']);
             }
             if (!$this->server) {
-                echo 'DNMVCS swoole mode: Start server failed';
+                echo 'SwooleHttpd: Start server failed';
                 exit;
             }
         }
