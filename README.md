@@ -1,3 +1,4 @@
+本版本暂停，请使用 DNMVCS 框架里的 SwooleHttpd
 # SwooleHttpd
 
 ## SwooleHttpd 是什么
