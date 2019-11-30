@@ -2,6 +2,8 @@
 namespace DNMVCS\SwooleHttpd;
 
 use DNMVCS\SwooleHttpd\SwooleSingleton;
+use DNMVCS\SwooleHttpd\SwooleSessionHandler;
+use Swoole\Coroutine;
 
 class SwooleSuperGlobal
 {
@@ -34,7 +36,7 @@ class SwooleSuperGlobal
     }
     public function init()
     {
-        $cid = \Swoole\Coroutine::getuid();
+        $cid=Coroutine::getuid();
         if ($cid<=0) {
             return;
         }
@@ -74,6 +76,11 @@ class SwooleSuperGlobal
         $this->_SERVER['cli_script_filename']=$this->_SERVER['SCRIPT_FILENAME']??'';
         
         $this->_FILES=$request->files;
+        
+        // fixed swoole system bug
+        if (!empty($this->_GET)) {
+            $this->_SERVER['REQUEST_URI'].='?'.http_build_query($this->_GET);
+        }
         
         return $this;
     }
@@ -163,9 +170,11 @@ class SwooleSuperGlobal
     {
         //SwooleHttpd::register_shutdown_function([$this,'writeClose']);
         $self=$this;
-        \defer(function () use ($self) {
-            $self->writeClose();
-        });
+        Coroutine::defer(
+            function () use ($self) {
+                $self->writeClose();
+            }
+        );
     }
     public function session_start(array $options=[])
     {
@@ -213,7 +222,7 @@ class SwooleSuperGlobal
     }
     public function create_sid()
     {
-        $cid = \Swoole\Coroutine::getuid();
+        $cid=Coroutine::getuid();
         return md5(microtime().' '.$cid.' '.mt_rand());
     }
 }

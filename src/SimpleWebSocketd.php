@@ -1,6 +1,10 @@
 <?php
 namespace DNMVCS\SwooleHttpd;
 
+use Swoole\ExitException;
+use Swoole\Http\Request;
+use Swoole\WebSocket\Server as Websocket_Server;
+
 trait SimpleWebSocketd
 {
     public $websocket_open_handler=null;
@@ -8,7 +12,7 @@ trait SimpleWebSocketd
     public $websocket_exception_handler=null;
     public $websocket_close_handler=null;
     
-    public function onOpen(swoole_websocket_server $server, swoole_http_request $request)
+    public function onOpen(Websocket_Server $server, Request $request)
     {
         SwooleContext::G()->initHttp($request, null);
         if (!$this->websocket_open_handler) {
@@ -22,12 +26,14 @@ trait SimpleWebSocketd
         SwooleContext::G()->initWebSocket($frame);
         
         $fd=$frame->fd;
-        ob_start(function ($str) use ($server,$fd) {
-            if (''===$str) {
-                return;
+        ob_start(
+            function ($str) use ($server,$fd) {
+                if (''===$str) {
+                    return;
+                }
+                $server->push($fd, $str);
             }
-            $server->push($fd, $str);
-        });
+        );
         try {
             if ($frame->opcode != 0x08  || !$this->websocket_close_handler) {
                 ($this->websocket_handler)();
@@ -35,7 +41,7 @@ trait SimpleWebSocketd
                 ($this->websocket_close_handler)();
             }
         } catch (\Throwable $ex) {
-            if (!($ex instanceof  \Swoole\ExitException)) {
+            if (!($ex instanceof ExitException)) {
                 ($this->websocket_exception_handler)($ex);
             }
         }

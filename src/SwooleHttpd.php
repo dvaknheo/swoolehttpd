@@ -6,22 +6,28 @@ namespace DNMVCS\SwooleHttpd;
 
 use DNMVCS\SwooleHttpd\SwooleSingleton;
 
-use DNMVCS\SwooleHttpd\SimpleHttpd;
-use DNMVCS\SwooleHttpd\SimpleWebsocketd;
+use DNMVCS\SwooleHttpd\SimpleWebSocketd;
 
 use DNMVCS\SwooleHttpd\SwooleHttpd_Static;
 use DNMVCS\SwooleHttpd\SwooleHttpd_SystemWrapper;
 use DNMVCS\SwooleHttpd\SwooleHttpd_SuperGlobal;
 use DNMVCS\SwooleHttpd\SwooleHttpd_Singleton;
 use DNMVCS\SwooleHttpd\SwooleHttpd_Handler;
+//use DNMVCS\SwooleHttpd\SwooleExtServerInterface;
 
-class SwooleHttpd
+use Swoole\ExitException;
+use Swoole\Http\Server as Http_Server;
+use Swoole\WebSocket\Server as Websocket_Server;
+use Swoole\Runtime;
+use Swoole\Coroutine;
+
+class SwooleHttpd //implements SwooleExtServerInterface
 {
-    const VERSION = 'DNMVCS-inner';
+    const VERSION = '1.1.3';
     use SwooleSingleton;
     
-    use SimpleHttpd;
-    use SimpleWebsocketd;
+    use SwooleHttpd_SimpleHttpd;
+    use SimpleWebSocketd;
     
     use SwooleHttpd_Handler;
     use SwooleHttpd_Glue;
@@ -68,7 +74,8 @@ class SwooleHttpd
     public $http_handler_file=null;
     public $http_exception_handler=null;
     public $http_404_handler=null;
-    
+    protected $with_http_handler_root=false;
+    protected $with_http_handler_file=false;
     public $enable_fix_index=true;
     public $enable_path_info=true;
     public $enable_not_php_file=true;
@@ -79,6 +86,8 @@ class SwooleHttpd
     protected $auto_clean_autoload=true;
     protected $old_autoloads=[];
     
+    public $is_shutdown=false;
+    
     public $skip_override=false;
     public static function RunQuickly(array $options=[], callable $after_init=null)
     {
@@ -87,14 +96,21 @@ class SwooleHttpd
         }
         static::G()->init($options);
         ($after_init)();
-        static::G()->run();
+        return static::G()->run();
     }
     public function set_http_exception_handler($exception_handler)
     {
         $this->http_exception_handler=$exception_handler;
     }
-    
-    
+    public function set_http_404_handler($http_404_handler)
+    {
+        $this->http_404_handler=$http_404_handler;
+    }
+    public function is_with_http_handler_root()
+    {
+        return $this->with_http_handler_root;
+    }
+
     public function exit_request($code=0)
     {
         exit($code);
@@ -110,6 +126,7 @@ class SwooleHttpd
         }
         throw new SwooleException($message, $code);
     }
+    
     protected function fixIndex()
     {
         $index_file='index.php';
@@ -253,12 +270,12 @@ class SwooleHttpd
         SwooleSuperGlobal::G()->_SERVER['SCRIPT_FILENAME']=$file;
         chdir(dirname($file));
         (function ($file) {
-            include($file);
+            include $file;
         })($file);
     }
     protected function onHttpException($ex)
     {
-        if ($ex instanceof \Swoole\ExitException) {
+        if ($ex instanceof ExitException) {
             return;
         }
         if ($ex instanceof Swoole404Exception) {
@@ -274,6 +291,7 @@ class SwooleHttpd
         }
         $functions = spl_autoload_functions();
         $this->old_autoloads=$this->old_autoloads?:[];
+        $functions=is_array($functions)?$functions:[];
         foreach ($functions as $function) {
             if (in_array($function, $this->old_autoloads)) {
                 continue;
@@ -310,7 +328,7 @@ class SwooleHttpd
         return static::G($base_class::G());
     }
     
-    public function init($options, $server=null)
+    public function init(array $options, $server=null)
     {
         $object=$this->checkOverride($options);
         if ($object) {
@@ -338,7 +356,7 @@ class SwooleHttpd
         
         $this->silent_mode=$options['silent_mode'];
         
-        $this->http_handler_basepath=rtrim(realpath($this->http_handler_basepath), '/').'/';
+        $this->http_handler_basepath=rtrim((string)realpath($this->http_handler_basepath), '/').'/';
         
         if (!$this->server) {
             $this->check_swoole();
@@ -348,14 +366,10 @@ class SwooleHttpd
                 exit;
             }
             if (!$options['websocket_handler']) {
-                $this->server=new \Swoole\Http\Server($options['host'], $options['port']);
+                $this->server=new Http_Server($options['host'], $options['port']);
             } else {
-                echo "SwooleHttpd: use WebSocket";
-                $this->server=new \Swoole\Websocket\Server($options['host'], $options['port']);
-            }
-            if (!$this->server) {
-                echo 'SwooleHttpd: Start server failed';
-                exit;
+                echo "SwooleHttpd: use WebSocket\n";
+                $this->server=new Websocket_Server($options['host'], $options['port']);
             }
         }
         if ($options['swoole_server_options']) {
@@ -378,7 +392,7 @@ class SwooleHttpd
             $this->server->on('open', [$this,'onOpen']);
         }
         if ($options['enable_coroutine']) {
-            \Swoole\Runtime::enableCoroutine();
+            Runtime::enableCoroutine();
         }
         
         SwooleCoroutineSingleton::ReplaceDefaultSingletonHandler();
@@ -397,7 +411,7 @@ class SwooleHttpd
     public function run()
     {
         if (!$this->silent_mode) {
-            fwrite(STDOUT, "[".DATE(DATE_ATOM)."] ".get_class($this)." run at ".$this->server->host.':'.$this->server->port." ...\n");
+            fwrite(STDOUT, "[".DATE(DATE_ATOM)."] ".get_class($this)." run at http://".$this->server->host.':'.$this->server->port."/ ...\n");
         }
         $this->server->start();
         if (!$this->silent_mode) {
@@ -405,6 +419,69 @@ class SwooleHttpd
         }
     }
 }
+trait SwooleHttpd_SimpleHttpd
+{
+
+    // en...
+    public function initHttp($request, $response)
+    {
+        SwooleContext::G(new SwooleContext())->initHttp($request, $response);
+    }
+    protected function deferGC()
+    {
+        Coroutine::defer(
+            function () {
+                gc_collect_cycles();
+            }
+        );
+    }
+    protected function checkShutdown()
+    {
+        if (!$this->is_shutdown) {
+            return;
+        }
+        throw new \Exception("Shutdowning".date(DATE_ATOM));
+    }
+    public function onRequest($request, $response)
+    {
+        $this->deferGC();
+        SwooleCoroutineSingleton::EnableCurrentCoSingleton(); // remark ,here has a defer
+        
+        $this->checkShutdown();
+        
+        Coroutine::defer(
+            function () {
+                $InitObLevel=0;
+                for ($i=ob_get_level();$i>$InitObLevel;$i--) {
+                    ob_end_flush();
+                }
+                SwooleContext::G()->cleanUp();
+            }
+        );
+        Coroutine::defer(
+            function () {
+                SwooleContext::G()->onShutdown();
+            }
+        );
+        ob_start(
+            function ($str) {
+                if (''===$str) {
+                    return;
+                }
+                SwooleContext::G()->response->end($str);
+            }
+        );
+        $this->initHttp($request, $response);
+        SwooleSuperGlobal::G(new SwooleSuperGlobal())->mapToGlobal();
+        try {
+            $this->onHttpRun($request, $response);
+        } catch (\Throwable $ex) {
+            $this->onHttpException($ex);
+        }
+        $this->onHttpClean();
+    }
+}
+
 trait SwooleHttpd_Handler
 {
     public static function OnShow404()
@@ -418,7 +495,7 @@ trait SwooleHttpd_Handler
     public function _OnShow404()
     {
         if ($this->http_404_handler) {
-            ($this->http_404_handler)($ex);
+            ($this->http_404_handler)();
             return;
         }
         static::header('', true, 404);
@@ -462,9 +539,9 @@ trait SwooleHttpd_Glue
         return SwooleContext::G()->isWebSocketClosing();
     }
     /////////////
-    public static function SG()
+    public static function SG($replacement_object=null)
     {
-        return SwooleSuperGlobal::G();
+        return SwooleSuperGlobal::G($replacement_object);
     }
     public static function &GLOBALS($k, $v=null)
     {
@@ -518,10 +595,10 @@ trait SwooleHttpd_SystemWrapper
     public static function system_wrapper_get_providers():array
     {
         $ret=[
-            'header'				=>[static::class,'header'],
-            'setcookie'				=>[static::class,'setcookie'],
-            'exit_system'			=>[static::class,'exit_system'],
-            'set_exception_handler'	=>[static::class,'set_exception_handler'],
+            'header'                =>[static::class,'header'],
+            'setcookie'                =>[static::class,'setcookie'],
+            'exit_system'            =>[static::class,'exit_system'],
+            'set_exception_handler'    =>[static::class,'set_exception_handler'],
             'register_shutdown_function' =>[static::class,'register_shutdown_function'],
         ];
         return $ret;
@@ -537,6 +614,10 @@ trait SwooleHttpd_Singleton
     {
         return SwooleCoroutineSingleton::EnableCurrentCoSingleton();
     }
+    public function getStaticComponentClasses()
+    {
+        return [];
+    }
     public function getDynamicComponentClasses()
     {
         $classes=[
@@ -545,13 +626,14 @@ trait SwooleHttpd_Singleton
         ];
         return $classes;
     }
+    //
     public function forkMasterInstances($classes, $exclude_classes=[])
     {
         return SwooleCoroutineSingleton::G()->forkMasterInstances($classes, $exclude_classes);
     }
-    public function resetInstances()
+    public function forkMasterClassesToNewInstances()
     {
-        $classes=$this->getDynamicClasses();
+        $classes=$this->getDynamicComponentClasses();
         $instances=[];
         foreach ($classes as $class) {
             $instances[$class]=$class::G();
