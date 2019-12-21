@@ -4,23 +4,20 @@
     "type": "library",
     "keywords": [
         "framework",
-		"service",
-		"swoole"
+        "swoole"
     ],
     "homepage": "https://www.github.com/dvaknheo/SwooleHttpd",
     "license": "MIT",
-    "authors": [
-        {
-            "name": "davknheo",
-            "email": "85811616@qq.com"
-        }
-    ],
-	"autoload": {
+    "authors": [{
+        "name": "davknheo",
+        "email": "85811616@qq.com"
+    }],
+    "autoload": {
         "psr-4": {
             "SwooleHttpd\\": "src"
         }
     },
     "require": {
         "php": ">=7.0.0"
-	}
+    }
 }

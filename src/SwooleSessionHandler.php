@@ -1,7 +1,11 @@
-<?php
-namespace DNMVCS\SwooleHttpd;
+<?php declare(strict_types=1);
+/**
+ * SwooleHttpd
+ * From this time, you never be alone~
+ */
+namespace SwooleHttpd;
 
-use DNMVCS\SwooleHttpd\SwooleSingleton;
+use SwooleHttpd\SwooleSingleton;
 use SessionHandlerInterface;
 
 class SwooleSessionHandler implements SessionHandlerInterface
@@ -39,7 +43,7 @@ class SwooleSessionHandler implements SessionHandlerInterface
     }
     public function gc($maxlifetime)
     {
-        $files=glob("$this->savePath/sess_*");
+        $files = glob("$this->savePath/sess_*");
         if (!$files) {
             return true;
         }

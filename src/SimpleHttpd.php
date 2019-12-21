@@ -1,10 +1,14 @@
-<?php
-namespace DNMVCS\SwooleHttpd;
+<?php declare(strict_types=1);
+/**
+ * SwooleHttpd
+ * From this time, you never be alone~
+ */
+namespace SwooleHttpd;
 
-use DNMVCS\SwooleHttpd\SwooleException;
-use DNMVCS\SwooleHttpd\SwooleContext;
-use DNMVCS\SwooleHttpd\SwooleSuperGlobal;
-use DNMVCS\SwooleHttpd\SwooleCoroutineSingleton;
+use SwooleHttpd\SwooleException;
+use SwooleHttpd\SwooleContext;
+use SwooleHttpd\SwooleSuperGlobal;
+use SwooleHttpd\SwooleCoroutineSingleton;
 
 trait SimpleHttpd
 {
@@ -35,8 +39,8 @@ trait SimpleHttpd
         SwooleCoroutineSingleton::EnableCurrentCoSingleton(); // remark ,here has a defer
         
         \defer(function () {
-            $InitObLevel=0;
-            for ($i=ob_get_level();$i>$InitObLevel;$i--) {
+            $InitObLevel = 0;
+            for ($i = ob_get_level();$i > $InitObLevel;$i--) {
                 ob_end_flush();
             }
             SwooleContext::G()->cleanUp();
@@ -45,7 +49,7 @@ trait SimpleHttpd
             SwooleContext::G()->onShutdown();
         });
         ob_start(function ($str) {
-            if (''===$str) {
+            if ('' === $str) {
                 return;
             }
             SwooleContext::G()->response->end($str);
