@@ -10,7 +10,9 @@ interface SwooleExtAppInterface
     public static function G($object = null);
     public function run();
     
-    public function onSwooleHttpdInit(SwooleHttpd $SwooleHttpd, bool $InCoroutine, ?callable $RunHandler = null);
+    public function onSwooleHttpdInit(SwooleHttpd $SwooleHttpd, ?callable $RunHandler = null);
+    public function onSwooleHttpdStart(SwooleHttpd $SwooleHttpd);
+    public function onSwooleHttpdRequest(SwooleHttpd $SwooleHttpd);
     public function getDynamicComponentClasses();
     public function getStaticComponentClasses();
 }

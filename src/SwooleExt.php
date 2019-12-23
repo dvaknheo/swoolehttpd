@@ -36,7 +36,7 @@ class SwooleExt
         }
         $cid = Coroutine::getuid();
         if ($cid > 0) {
-            ($this->appClass)::G()->onSwooleHttpdCoroutine(SwooleHttpd::G());
+            ($this->appClass)::G()->onSwooleHttpdRequest(SwooleHttpd::G());
             return;
         }
         
@@ -51,13 +51,14 @@ class SwooleExt
         $options['http_handler'] = [$this,'runSwoole'];
         SwooleHttpd::G()->init($options, null);
 
-        ($this->appClass)::G()->onSwooleHttpdInit(SwooleHttpd::G(), [static::class,'OnRun']);
+        ($this->appClass)::G()->onSwooleHttpdInit(SwooleHttpd::G(), [static::class,'RunInstance']);
         return $this;
     }
     protected function replaceInstances()
     {
         $server = SwooleHttpd::G();
         $classes = ($this->appClass)::G()->getStaticComponentClasses();
+        $classes[] = $this->appClass;
         $instances = [];
         foreach ($classes as $class) {
             $instances[$class] = $class::G();
@@ -75,7 +76,7 @@ class SwooleExt
             $class::G($object);
         }
     }
-    public static function OnRun()
+    public static function RunInstance()
     {
         return static::G()->run();
     }
@@ -88,7 +89,7 @@ class SwooleExt
         if ($cid > 0) {
             return;
         }
-        
+        ($this->appClass)::G()->onSwooleHttpdStart(SwooleHttpd::G());
         SwooleHttpd::G()->run();
 
         // OK ,we need not return .

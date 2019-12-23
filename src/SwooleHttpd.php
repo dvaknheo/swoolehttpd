@@ -570,7 +570,7 @@ trait SwooleHttpd_SystemWrapper
     {
         return SwooleContext::G()->setcookie($key, $value, $expire, $path, $domain, $secure, $httponly);
     }
-    public static function exit_system($code = 0)
+    public static function exit($code = 0)
     {
         return static::G()->exit_request($code);
     }
@@ -601,7 +601,7 @@ trait SwooleHttpd_SystemWrapper
         $ret = [
             'header' => [static::class,'header'],
             'setcookie' => [static::class,'setcookie'],
-            'exit_system' => [static::class,'exit_system'],
+            'exit' => [static::class,'exit'],
             'set_exception_handler' => [static::class,'set_exception_handler'],
             'register_shutdown_function' => [static::class,'register_shutdown_function'],
         ];
