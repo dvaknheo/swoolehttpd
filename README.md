@@ -37,7 +37,7 @@ composer require dnmvcs/swoolehttpd
 
 ```php
 <?php
-use DNMVCS\SwooleHttpd;
+use SwooleHttpd\SwooleHttpd;
 require(__DIR__.'/../autoload.php');
 function hello()
 {
@@ -226,7 +226,7 @@ static G($object=null) *DNMVCS 通用*
 
     G 函数，可替换单例。
 
-__callStatic($name, $arguments) *DNMVCS 通用*
+__callStatic($name, $arguments)
 
     SwooleHttpd::G($object) 后 $object 的静态方法 SwooleHttpd 也可用
     SwooleHttpd::G()->assignStaticMethod 定的 静态方法 SwooleHttpd 也可用。
@@ -242,11 +242,11 @@ EnableCurrentCoSingleton()
 
 ### 单例模式
 
-SwooleHttpd  use trait DNSingleton 。
-DNSingleton 定义了静态函数 G($object=null)   ，如果默认参数的话得到当前单例。
+SwooleHttpd  use trait SingletonEx 。
+SingletonEx 定义了静态函数 G($object=null)   ，如果默认参数的话得到当前单例。
 如果传入  $object 则替换单例，实现调用方式不变，实现方式改变的效果。
 
-SwooleHttpd::  通过使用 SwooleCoroutineSingleton 进一步扩展了 DNSingltone （ 通过 DNMVCS_DNSINGLETON_REPALACER 宏 ）
+SwooleHttpd::  通过使用 SwooleCoroutineSingleton 进一步扩展了 SingletonEx （ 通过 __SINGLETONEX_REPALACER 宏 ）
 实现了协程内单例。
 
 如果协程内没单例，会查找全局的单例（$cid=0）的

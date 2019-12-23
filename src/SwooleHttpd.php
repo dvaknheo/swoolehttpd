@@ -370,7 +370,7 @@ class SwooleHttpd //implements SwooleExtServerInterface
                 exit;
             }
             if (!$options['websocket_handler']) {
-                $this->server = new Http_Server($options['host'], $options['port']);
+                $this->server = new Http_Server($options['host'], (int) $options['port']);
             } else {
                 echo "SwooleHttpd: use WebSocket\n";
                 $this->server = new Websocket_Server($options['host'], $options['port']);
