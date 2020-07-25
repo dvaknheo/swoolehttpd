@@ -6,7 +6,7 @@ graph [rankdir = "LR"];
 
 subgraph cluster_SwooleHttpd {
     node [style=filled];
-    label = "[DNMVCS\\SwooleHttpd]";
+    label = "[SwooleHttpd\\SwooleHttpd]";
 
     subgraph cluster_SwooleHttpd_trait {
         SwooleHttpd_trait [style="dotted"];

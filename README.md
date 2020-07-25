@@ -1,4 +1,3 @@
-本版本暂停，请使用 DNMVCS 框架里的 SwooleHttpd
 # SwooleHttpd
 
 ## SwooleHttpd 是什么
@@ -6,8 +5,8 @@
 SwooleHttpd 致力于 Swoole 代码和 fpm 平台 代码几乎不用修改就可以双平台运行。
 是对 swoole_http_server 类的一个包裹。
 
-SwooleHttpd 原先来自 PHP 框架DNMVCS。不对外引用其他 PHP 代码，简单可靠。
-但是 SwooleHttpd 是设计成几乎和 DNMVCS 无关的Swoole 框架，所以我把他剥离了。
+SwooleHttpd 原先来自 PHP 框架 DuckPhp 的前身DNMVCS。不对外引用其他 PHP 代码，简单可靠。
+但是 SwooleHttpd 是设计成几乎和 DuckPhp 无关的Swoole 框架，所以我把他剥离了。
 
 理论上应该是是高性能的
 
@@ -32,7 +31,7 @@ SwooleHttpd 原先来自 PHP 框架DNMVCS。不对外引用其他 PHP 代码，�
 ### 使用方法：
 
 ```shell
-composer require dnmvcs/swoolehttpd
+composer require dvaknheo/swoolehttpd
 ```
 
 ```php
@@ -92,7 +91,7 @@ const DEFAULT_OPTIONS=[
 
 ### 难度级别
 
-从难度低到高，大概是这样的级别以实现目的 *DNMVCS 通用*
+从难度低到高，大概是这样的级别以实现目的 *DuckPhp 通用*
 
 1. 使用默认选项实现目的
 2. 只改选项实现目的
@@ -106,7 +105,7 @@ const DEFAULT_OPTIONS=[
 
 ### 文档小备注
 
-（DNMVCS 通用）的备注，在 DNMVCS 中也会有类似的做法。两者文档重复，方便看过 DNMVCS 的人。
+（DuckPhp 通用）的备注，在 DuckPhp 中也会有类似的做法。两者文档重复，方便看过 DuckPhp 的人。
 
 ### 三种模式
 
@@ -132,14 +131,14 @@ SwooleHttpd 有三种模式
 
 常用静态方法，基本都要用到的静态方法
 
-static RunQuickly(array $options=[],callable $after_init=null) *DNMVCS 通用*
+static RunQuickly(array $options=[],callable $after_init=null) *DuckPhp 通用*
 
     入口，等价于 SwooleHttpd::G()->init($options)->run();
     如果 after_init不为 null 将会在 init 后执行
-ThrowOn($flag,$message,$code=0) *DNMVCS 通用*
+ThrowOn($flag,$message,$code=0) *DuckPhp 通用*
 
     如果 flag 成立抛出异常
-    和 DNMVCS 不同的是，这里抛出 SwooleException。
+    和 DuckPhp 不同的是，这里抛出 SwooleException。
 Throw404()
 
     抛出 Swoole404Exception,进入 404 处理。
@@ -161,7 +160,7 @@ OnException($ex)
 
     异常的处理方法，选项 http_exception_handler 优先使用
 
-### 超全局变量静态方法 *DNMVCS 通用*
+### 超全局变量静态方法 *DuckPhp 通用*
 
 代替超全局变量，基本由 SwooleSuperGlobal 的动态方法实现
 高级程序员可以由接管 SwooleSuperGlobal 以实现自己的解决方式。
@@ -222,7 +221,7 @@ session_set_save_handler(\SessionHandlerInterface $handler)
 
 这些静态方法，初学者可以忽略
 
-static G($object=null) *DNMVCS 通用*
+static G($object=null) *DuckPhp 通用*
 
     G 函数，可替换单例。
 
@@ -260,7 +259,7 @@ swoole 的协程使得 跨领域的 global ,static, 类内 static 变量不可�
 
 ```php
 <?php
-use DNMVCS\SwooleHttpd as DN;
+use DuckPhp\SwooleHttpd as DN;
 require (__DIR__.'/../autoload.php');
 
 global $n;
@@ -335,9 +334,9 @@ resetInstances()
 
 ### SwooleHttpd 的预定义宏
 
-    DNMVCS_DNSINGLETON_REPALACER        耦合连接，协程单例，替换默认实现
-    DNMVCS_SYSTEM_WRAPPER_INSTALLER     耦合连接，提供系统封装接口，DNMVVS
-    DNMVCS_SUPER_GLOBAL_REPALACER       耦合连接，提供SuperGlobal 接口类
+    DuckPhp_DNSINGLETON_REPALACER        耦合连接，协程单例，替换默认实现
+    DuckPhp_SYSTEM_WRAPPER_INSTALLER     耦合连接，提供系统封装接口，DNMVVS
+    DuckPhp_SUPER_GLOBAL_REPALACER       耦合连接，提供SuperGlobal 接口类
 
 ### 简单 HTTP 服务器
 
@@ -369,7 +368,7 @@ SwooleHttpd 用的 trait SwooleHttpd_SimpleHttpd .
 
 ### SwooleSingleton
 
-共享 trait，这代码在 DNMVCS 里也有 单例 G 函数
+共享 trait，这代码在 DuckPhp 里也有 单例 G 函数
 
 SwooleHttpd  重写了 G 函数的实现，使得做到协程单例。
 
@@ -432,8 +431,8 @@ SwooleHttpd  重写了 G 函数的实现，使得做到协程单例。
     载入选项 如果没有 server 对象则根据配置创建一个。
 
     SwooleCoroutineSingleton::ReplaceDefaultSingletonHandler(); 替换单例
-    宏 DNMVCS_SUPER_GLOBAL_REPALACER 定为 SwooleSuperGlobal::G
-    宏 DNMVCS_SYSTEM_WRAPPER_INSTALLER 定为 static::system_wrapper_get_providers;
+    宏 DuckPhp_SUPER_GLOBAL_REPALACER 定为 SwooleSuperGlobal::G
+    宏 DuckPhp_SYSTEM_WRAPPER_INSTALLER 定为 static::system_wrapper_get_providers;
 
 ### 基本流程 run()
 
@@ -495,7 +494,7 @@ SwooleHttpd  重写了 G 函数的实现，使得做到协程单例。
 
 如果 http_handler_file 模式
 
-### DNMVCS handler 相关。
+### DuckPhp handler 相关。
 
 ## WebSocket(测试中)
 

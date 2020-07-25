@@ -306,11 +306,11 @@ class SwooleHttpd //implements SwooleExtServerInterface
     protected function check_swoole()
     {
         if (!function_exists('swoole_version')) {
-            echo 'DNMVCS swoole mode: PHP Extension swoole needed;';
+            echo 'SwooleHttpd: PHP Extension swoole needed;';
             exit;
         }
         if (version_compare(swoole_version(), '4.2.0', '<')) {
-            echo 'DNMVCS swoole mode: swoole >=4.2.0 needed;';
+            echo 'SwooleHttpd: swoole >=4.2.0 needed;';
             exit;
         }
     }
@@ -401,15 +401,7 @@ class SwooleHttpd //implements SwooleExtServerInterface
         
         SwooleCoroutineSingleton::ReplaceDefaultSingletonHandler();
         static::G($this);
-        //SwooleSuperGlobal::G(); NoNeed;
-        
-        //if (!defined('DNMVCS_SYSTEM_WRAPPER_INSTALLER')) {
-        //    define('DNMVCS_SYSTEM_WRAPPER_INSTALLER', static::class .'::' .'system_wrapper_get_providers');
-        //}
-        //if (!defined('DNMVCS_SUPER_GLOBAL_REPALACER')) {
-        //    define('DNMVCS_SUPER_GLOBAL_REPALACER', SwooleSuperGlobal::class .'::' .'G');
-        //}
-        
+
         return $this;
     }
     public function run()
@@ -503,7 +495,7 @@ trait SwooleHttpd_Handler
             return;
         }
         static::header('', true, 404);
-        echo "DNMVCS swoole mode: Server 404 \n";
+        echo "SwooleHttpd: Server 404 \n";
     }
     public function _OnException($ex)
     {
@@ -512,7 +504,7 @@ trait SwooleHttpd_Handler
             return;
         }
         static::header('', true, 500);
-        echo "DNMVCS swoole mode: Server Error. \n";
+        echo "SwooleHttpd: Server Error. \n";
         echo var_export($ex);
     }
 }
@@ -558,6 +550,14 @@ trait SwooleHttpd_Glue
     public static function &CLASS_STATICS($class_name, $var_name)
     {
         return SwooleSuperGlobal::G()->_CLASS_STATICS($class_name, $var_name);
+    }
+    public static function ReplaceDefaultSingletonHandler()
+    {
+        return SwooleCoroutineSingleton::ReplaceDefaultSingletonHandler();
+    }
+    public static function EnableCurrentCoSingleton()
+    {
+        return SwooleCoroutineSingleton::EnableCurrentCoSingleton();
     }
 }
 trait SwooleHttpd_SystemWrapper
@@ -610,18 +610,12 @@ trait SwooleHttpd_SystemWrapper
 }
 trait SwooleHttpd_Singleton
 {
-    public static function ReplaceDefaultSingletonHandler()
-    {
-        return SwooleCoroutineSingleton::ReplaceDefaultSingletonHandler();
-    }
-    public static function EnableCurrentCoSingleton()
-    {
-        return SwooleCoroutineSingleton::EnableCurrentCoSingleton();
-    }
+    //@inteface;
     public function getStaticComponentClasses()
     {
         return [];
     }
+    //@inteface;
     public function getDynamicComponentClasses()
     {
         $classes = [
@@ -630,7 +624,7 @@ trait SwooleHttpd_Singleton
         ];
         return $classes;
     }
-    //
+    //@inteface;
     public function forkMasterInstances($classes, $exclude_classes = [])
     {
         return SwooleCoroutineSingleton::G()->forkMasterInstances($classes, $exclude_classes);
