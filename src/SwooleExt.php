@@ -14,7 +14,7 @@ class SwooleExt
 {
     use SwooleSingleton;
     
-    protected $appClass;
+    protected $context_class;
     protected $is_inited = false;
     protected $is_error = false;
     protected $in_fake = false;
@@ -29,36 +29,30 @@ class SwooleExt
         }
         $this->is_inited = true;
         
-        $this->appClass = $options['swoolehttpd_app_class'] ?? ($context?get_class($context):null);
-        
         if (!class_exists(Coroutine::class)) {
             return $this;
         }
+        
+        $this->context_class = get_class($context);
         $cid = Coroutine::getuid();
         if ($cid > 0) {
-            ($this->appClass)::G()->onSwooleHttpdRequest(SwooleHttpd::G());
+            ($this->context_class)::G()->onSwooleHttpdRequest(SwooleHttpd::G());
             return;
         }
         
-        $options = $options['swoole'] ?? [];
-        if (empty($options)) {
-            return $this;
-        }
-        
-        
         $this->replaceInstances();
         
-        $options['http_handler'] = [$this,'runSwoole'];
+        $options['http_handler'] = [static::class,'RunSwoole'];
         SwooleHttpd::G()->init($options, null);
-
-        ($this->appClass)::G()->onSwooleHttpdInit(SwooleHttpd::G(), [static::class,'RunInstance']);
+        ($this->context_class)::G()->onSwooleHttpdInit(SwooleHttpd::G(), [static::class,'OnAppRun']);
+        
         return $this;
     }
     protected function replaceInstances()
     {
         $server = SwooleHttpd::G();
-        $classes = ($this->appClass)::G()->getStaticComponentClasses();
-        $classes[] = $this->appClass;
+        $classes = ($this->context_class)::G()->getStaticComponentClasses();
+        $classes[] = $this->context_class;
         $instances = [];
         foreach ($classes as $class) {
             $instances[$class] = $class::G();
@@ -76,11 +70,11 @@ class SwooleExt
             $class::G($object);
         }
     }
-    public static function RunInstance()
+    public static function OnAppRun()
     {
-        return static::G()->run();
+        return static::G()->_OnAppRun();
     }
-    public function run()
+    public function _OnAppRun()
     {
         if (!$this->is_inited) {
             return;
@@ -89,28 +83,32 @@ class SwooleExt
         if ($cid > 0) {
             return;
         }
-        ($this->appClass)::G()->onSwooleHttpdStart(SwooleHttpd::G());
+        ($this->context_class)::G()->onSwooleHttpdStart(SwooleHttpd::G());
         SwooleHttpd::G()->run();
 
         // OK ,we need not return .
         $this->is_error = true;
         throw new Exception('run break;', 500);
     }
-    public function runSwoole()
+    public static function RunSwoole()
     {
-        $classes = ($this->appClass)::G()->getDynamicComponentClasses();
+        return static::G()->_RunSwoole();
+    }
+    public function _RunSwoole()
+    {
+        $classes = ($this->context_class)::G()->getDynamicComponentClasses();
         $exclude_classes = SwooleHttpd::G()->getDynamicComponentClasses();
         SwooleHttpd::G()->forkMasterInstances($classes, $exclude_classes);
         
-        $ret = ($this->appClass)::G()->run();
+        $ret = ($this->context_class)::G()->run();
         if ($ret) {
             return true;
         }
         if (SwooleHttpd::G()->is_with_http_handler_root()) {
-            //SwooleHttpd::G()->forkMasterInstances([get_class(($this->appClass)::G())]);
+            //SwooleHttpd::G()->forkMasterInstances([get_class(($this->context_class)::G())]);
             SwooleHttpd::G()->forkMasterClassesToNewInstances();
             return false;
         }
-        return true; //应该 return false ?
+        return true;
     }
 }

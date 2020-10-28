@@ -92,14 +92,11 @@ class SwooleHttpd //implements SwooleExtServerInterface
         ($after_init)();
         return static::G()->run();
     }
-    public function set_http_exception_handler($exception_handler)
+    public static function Throw404()
     {
-        $this->options['http_exception_handler'] = $exception_handler;
+        throw new Swoole404Exception();
     }
-    public function set_http_404_handler($http_404_handler)
-    {
-        $this->options['http_404_handler'] = $http_404_handler;
-    }
+    
     public function is_with_http_handler_root()
     {
         return $this->options['with_http_handler_root'];
@@ -109,28 +106,19 @@ class SwooleHttpd //implements SwooleExtServerInterface
     {
         exit($code);
     }
-    public static function Throw404()
-    {
-        throw new Swoole404Exception();
-    }
-    public static function ThrowOn($flag, $message, $code = 0)
-    {
-        if (!$flag) {
-            return;
-        }
-        throw new SwooleException($message, $code);
-    }
+
     protected function fixIndex()
     {
+        // 需要调整 script_filename 等。
         $index_file = 'index.php';
         $index_path = '/'.$index_file;
-        $path_info = static::SG()->_SERVER['PATH_INFO'];
+        $path_info = static::SuperGlobal()->_SERVER['PATH_INFO'];
         if (substr($path_info, 0, strlen($index_path)) === $index_path) {
             if (strlen($path_info) === strlen($index_path)) {
-                static::SG()->_SERVER['PATH_INFO'] = '';
+                static::SuperGlobal()->_SERVER['PATH_INFO'] = '';
             } else {
                 if ($index_path.'/' === substr($path_info, 0, strlen($index_path) + 1)) {
-                    static::SG()->_SERVER['PATH_INFO'] = substr($path_info, strlen($index_path) + 1);
+                    static::SuperGlobal()->_SERVER['PATH_INFO'] = substr($path_info, strlen($index_path) + 1);
                 }
             }
         }
@@ -307,6 +295,8 @@ class SwooleHttpd //implements SwooleExtServerInterface
     /////////////////////////
     protected function checkOverride($options)
     {
+        return static::G($this);
+        
         if ($this->skip_override) {
             return null;
         }
@@ -332,18 +322,17 @@ class SwooleHttpd //implements SwooleExtServerInterface
         $this->options = $options = array_merge(self::DEFAULT_OPTIONS, $options);
         $this->server = $this->options['swoole_server'];
         $this->options['http_handler_basepath'] = rtrim((string)realpath($this->options['http_handler_basepath']), '/').'/';        
-        
         if (!$this->server) {
             $this->check_swoole();
             
             if (!$this->options['port']) {
-                echo static:class . ': No port ,set the port';
+                echo static::class . ': No port ,set the port';
                 exit;
             }
             if (!$this->options['websocket_handler']) {
                 $this->server = new Http_Server($this->options['host'], (int) $this->options['port']);
             } else {
-                echo static:class . ": use WebSocket\n";
+                echo static::class . ": use WebSocket\n";
                 $this->server = new Websocket_Server($this->options['host'], $this->options['port']);
             }
         }
@@ -386,6 +375,10 @@ class SwooleHttpd //implements SwooleExtServerInterface
             fwrite(STDOUT, get_class($this)." run end ".DATE(DATE_ATOM)." ...\n");
         }
     }
+}
+trait SwooleHttpd_RunFile
+{
+    //
 }
 trait SwooleHttpd_SimpleHttpd
 {
@@ -507,7 +500,7 @@ trait SwooleHttpd_Glue
         return SwooleContext::G()->isWebSocketClosing();
     }
     /////////////
-    public static function SG($replacement_object = null)
+    public static function SuperGlobal($replacement_object = null)
     {
         return SwooleSuperGlobal::G($replacement_object);
     }
