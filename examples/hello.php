@@ -4,7 +4,7 @@ require(__DIR__.'/../autoload.php');
 function hello()
 {
     echo "<h1> hello ,have a good start.</h1><pre>\n";
-    var_export(SwooleHttpd::SG());
+    var_export($_SERVER);
     echo "</pre>";
     return true;
 }

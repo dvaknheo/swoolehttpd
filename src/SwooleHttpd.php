@@ -28,7 +28,7 @@ use Swoole\Coroutine;
 
 class SwooleHttpd //implements SwooleExtServerInterface
 {
-    const VERSION = '1.1.3';
+    const VERSION = '1.1.4-dev';
     use SwooleSingleton;
     
     use SwooleHttpd_SimpleHttpd;
@@ -92,33 +92,30 @@ class SwooleHttpd //implements SwooleExtServerInterface
         ($after_init)();
         return static::G()->run();
     }
-    public static function Throw404()
-    {
-        throw new Swoole404Exception();
-    }
-    
+
     public function is_with_http_handler_root()
     {
         return $this->options['with_http_handler_root'];
     }
 
-    public function exit_request($code = 0)
+    public function _exit($code = 0)
     {
         exit($code);
     }
 
+    ///////////////////////////////
     protected function fixIndex()
     {
         // 需要调整 script_filename 等。
         $index_file = 'index.php';
         $index_path = '/'.$index_file;
-        $path_info = static::SuperGlobal()->_SERVER['PATH_INFO'];
+        $path_info = $_SERVER['PATH_INFO'];
         if (substr($path_info, 0, strlen($index_path)) === $index_path) {
             if (strlen($path_info) === strlen($index_path)) {
-                static::SuperGlobal()->_SERVER['PATH_INFO'] = '';
+                $_SERVER['PATH_INFO'] = '';
             } else {
                 if ($index_path.'/' === substr($path_info, 0, strlen($index_path) + 1)) {
-                    static::SuperGlobal()->_SERVER['PATH_INFO'] = substr($path_info, strlen($index_path) + 1);
+                    $_SERVER['PATH_INFO'] = substr($path_info, strlen($index_path) + 1);
                 }
             }
         }
@@ -134,11 +131,10 @@ class SwooleHttpd //implements SwooleExtServerInterface
             
             $flag = ($this->options['http_handler'])();
             if ($flag) {
-                return;
+                return true;
             }
             if (!$this->options['with_http_handler_root'] && !$this->options['http_handler_file']) {
-                static::Throw404();
-                return;
+                return false;
             }
             $this->auto_clean_autoload = true;
         }
@@ -151,12 +147,11 @@ class SwooleHttpd //implements SwooleExtServerInterface
                 return;
             }
             if (!$this->options['with_http_handler_file'] || $this->options['http_handler']) {
-                static::Throw404();
-                return;
+                return false;
             }
         }
         if ($this->options['http_handler_file']) {
-            $path_info = SwooleSuperGlobal::G()->_SERVER['REQUEST_URI'];
+            $path_info = $_SERVER['REQUEST_URI'];
             $file = $this->options['http_handler_basepath'].$this->options['http_handler_file'];
             $document_root = dirname($file);
             $this->includeHttpPhpFile($file, $document_root, $path_info);
@@ -169,7 +164,7 @@ class SwooleHttpd //implements SwooleExtServerInterface
         $http_handler_root = rtrim($http_handler_root, '/').'/';
         
         $document_root = $this->static_root?:rtrim($http_handler_root, '/');
-        $path = parse_url(SwooleSuperGlobal::G()->_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         
         return [$path,$document_root];
     }
@@ -247,14 +242,16 @@ class SwooleHttpd //implements SwooleExtServerInterface
     }
     protected function includeHttpPhpFile($file, $document_root, $path_info)
     {
-        SwooleSuperGlobal::G()->_SERVER['PATH_INFO'] = $path_info;
-        SwooleSuperGlobal::G()->_SERVER['DOCUMENT_ROOT'] = $document_root;
-        SwooleSuperGlobal::G()->_SERVER['SCRIPT_FILENAME'] = $file;
+        $_SERVER['PATH_INFO'] = $path_info;
+        $_SERVER['DOCUMENT_ROOT'] = $document_root;
+        $_SERVER['SCRIPT_FILENAME'] = $file;
         chdir(dirname($file));
         (function ($file) {
             include $file;
         })($file);
     }
+    ///////////////////
+    
     protected function onHttpException($ex)
     {
         if ($ex instanceof ExitException) {
@@ -432,12 +429,17 @@ trait SwooleHttpd_SimpleHttpd
                 SwooleContext::G()->response->end($str);
             }
         );
+        ///////////////////
         $this->initHttp($request, $response);
         SwooleSuperGlobal::G(new SwooleSuperGlobal())->mapToGlobal();
+        $flag = true;
         try {
-            $this->onHttpRun($request, $response);
+            $flag = $this->onHttpRun($request, $response);
         } catch (\Throwable $ex) {
             $this->onHttpException($ex);
+        }
+        if(!$flag){
+            $this->_OnShow404();
         }
         $this->onHttpClean();
     }
@@ -455,6 +457,7 @@ trait SwooleHttpd_Handler
     }
     public function _OnShow404()
     {
+        //
         if ($this->options['http_404_handler']) {
             ($this->options['http_404_handler'])();
             return;
@@ -537,7 +540,7 @@ trait SwooleHttpd_SystemWrapper
     }
     public static function exit($code = 0)
     {
-        return static::G()->exit_request($code);
+        return static::G()->_exit($code);
     }
     public static function set_exception_handler(callable $exception_handler)
     {
@@ -568,6 +571,9 @@ trait SwooleHttpd_SystemWrapper
             'setcookie' => [static::class,'setcookie'],
             'exit' => [static::class,'exit'],
             'set_exception_handler' => [static::class,'set_exception_handler'],
+            'session_start' => [static::class,'session_start'],
+            'session_destroy' => [static::class,'session_destroy'],
+            'session_set_save_handler' => [static::class,'session_set_save_handler'],
             'register_shutdown_function' => [static::class,'register_shutdown_function'],
         ];
         return $ret;
