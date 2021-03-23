@@ -80,8 +80,10 @@ class SwooleSuperGlobal
         
         return $this;
     }
-    public function mapToGlobal()
+    public function _LoadSuperGlobalAll()
     {
+    
+        //
         $_GET = $this->_GET;
         $_POST = $this->_POST;
         $_REQUEST = $this->_REQUEST;
