@@ -5,8 +5,8 @@
  */
 namespace SwooleHttpd;
 
+use SwooleHttpd\SwooleHttpd;
 use SwooleHttpd\SwooleSingleton;
-use SwooleHttpd\SwooleSessionHandler;
 use Swoole\Coroutine;
 
 class SwooleSuperGlobal
@@ -21,29 +21,20 @@ class SwooleSuperGlobal
     public $_COOKIE = [];
     public $_SESSION;
     public $_FILES = [];
-    
-    public $GLOBALS = [];
-    public $STATICS = [];
-    public $CLASS_STATICS = [];
-
-    protected $session_handler = null;
-    protected $session_id = null;
-    protected $session_name = '';
-    protected $sessionOptions = [];
-    
-    protected $is_session_started = false;
-    
     public $is_inited = false;
+    
     public function __construct()
     {
         $this->init();
     }
     public function init()
     {
+        // 这里
         $cid = Coroutine::getuid();
         if ($cid <= 0) {
             return;
         }
+        static::DefineSuperGlobalContext();
         
         if ($this->is_inited) {
             return $this;
@@ -51,6 +42,7 @@ class SwooleSuperGlobal
         $this->is_inited = true;
         
         $request = SwooleHttpd::Request();
+        
         if (!$request) {
             return;
         }
@@ -90,143 +82,22 @@ class SwooleSuperGlobal
     }
     public function mapToGlobal()
     {
-        $_GET = &$this->_GET;
-        $_POST = &$this->_POST;
-        $_REQUEST = &$this->_REQUEST;
-        $_SERVER = &$this->_SERVER;
+        $_GET = $this->_GET;
+        $_POST = $this->_POST;
+        $_REQUEST = $this->_REQUEST;
+        $_SERVER = $this->_SERVER;
         // $_ENV       =&$this->_ENV; no need
-        $_COOKIE = &$this->_COOKIE;
-        $_SESSION = &$this->_SESSION;
-        $_FILES = &$this->_FILES;
-    }
-
-    public function &_GLOBALS($k, $v = null)
-    {
-        if (!isset($this->GLOBALS[$k])) {
-            $this->GLOBALS[$k] = $v;
-        }
-        return $this->GLOBALS[$k];
-    }
-    public function &_STATICS($name, $value = null, $parent = 0)
-    {
-        $t = debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT | DEBUG_BACKTRACE_IGNORE_ARGS, $parent + 2)[$parent + 1] ?? []; //todo Coroutine trace ?
-        $k = '';
-        $k .= isset($t['object'])?'object_'.spl_object_hash($t['object']):'';
-        $k .= $t['class'] ?? '';
-        $k .= $t['type'] ?? '';
-        $k .= $t['function'] ?? '';
-        $k .= $k?'$':'';
-        $k .= $name;
-        
-        if (!isset($this->STATICS[$k])) {
-            $this->STATICS[$k] = $value;
-        }
-        return $this->STATICS[$k];
-    }
-    public function &_CLASS_STATICS($class_name, $var_name)
-    {
-        $k = $class_name.'::$'.$var_name;
-        if (!isset($this->CLASS_STATICS[$k])) {
-            $ref = new \ReflectionClass($class_name);
-            $reflectedProperty = $ref->getProperty($var_name);
-            $reflectedProperty->setAccessible(true);
-            $this->CLASS_STATICS[$k] = $reflectedProperty->getValue();
-        }
-        return $this->CLASS_STATICS[$k];
+        $_COOKIE = $this->_COOKIE;
+        $_SESSION = $this->_SESSION;
+        $_FILES = $this->_FILES;
     }
     ////////////////////////////
-    public function session_set_save_handler($handler)
+    public static function DefineSuperGlobalContext()
     {
-        return $this->session_handler = $handler;
-    }
-    protected function getSessionOption($key)
-    {
-        return $this->sessionOptions[$key] ?? ini_get('session.'.$key);
-    }
-    protected function getSessionId()
-    {
-        $session_name = $this->getSessionOption('name');
-        
-        $cookies = SwooleHttpd::Request()->cookie ?? [];
-        $session_id = $cookies[$session_name] ?? null;
-        if ($session_id === null || ! preg_match('/[a-zA-Z0-9,-]+/', $session_id)) {
-            $session_id = $this->create_sid();
+        if(!defined('__SUPERGLOBAL_CONTEXT')){
+            define('__SUPERGLOBAL_CONTEXT',static::class .'::G');
+            return true;
         }
-        
-        SwooleHttpd::setcookie(
-            $session_name,
-            $session_id,
-            $this->getSessionOption('cookie_lifetime')?time() + $this->getSessionOption('cookie_lifetime'):0,
-            $this->getSessionOption('cookie_path'),
-            $this->getSessionOption('cookie_domain'),
-            $this->getSessionOption('cookie_secure'),
-            $this->getSessionOption('cookie_httponly')
-        );
-        return $session_id;
-    }
-    protected function deleteSessionId()
-    {
-        $session_name = $this->getSessionOption('name');
-        SwooleHttpd::setcookie($session_name, '');
-        $this->session_id = null;
-    }
-    protected function registWriteClose()
-    {
-        //SwooleHttpd::register_shutdown_function([$this,'writeClose']);
-        $self = $this;
-        Coroutine::defer(
-            function () use ($self) {
-                $self->writeClose();
-            }
-        );
-    }
-    public function session_start(array $options = [])
-    {
-        if (!$this->session_handler) {
-            $this->session_handler = SwooleSessionHandler::G();
-        }
-        $this->is_session_started = true;
-        $this->sessionOptions = $options;
-        $this->registWriteClose();
-        $session_name = $this->getSessionOption('name');
-        $session_save_path = session_save_path();
-        $this->session_id = $this->session_id ?? $this->getSessionId();
-        
-        if ($this->getSessionOption('gc_probability') > mt_rand(0, $this->getSessionOption('gc_divisor'))) {
-            $this->session_handler->gc($this->getSessionOption('gc_maxlifetime'));
-        }
-        $this->session_handler->open($session_save_path, $session_name);
-        $raw = $this->session_handler->read($this->session_id);
-        $this->_SESSION = unserialize($raw);
-        if (!$this->_SESSION) {
-            $this->_SESSION = [];
-        }
-    }
-    public function session_id($session_id = null)
-    {
-        if (isset($session_id)) {
-            $this->session_id = $session_id;
-        }
-        return $this->session_id;
-    }
-    public function session_destroy()
-    {
-        $this->session_handler->destroy($this->session_id);
-        $this->_SESSION = [];
-        $this->deleteSessionId();
-        $this->is_session_started = false;
-    }
-    public function writeClose()
-    {
-        if (!$this->is_session_started) {
-            return;
-        }
-        $this->session_handler->write($this->session_id, serialize($this->_SESSION));
-        $this->_SESSION = [];
-    }
-    public function create_sid()
-    {
-        $cid = Coroutine::getuid();
-        return md5(microtime().' '.$cid.' '.mt_rand());
+        return false;
     }
 }

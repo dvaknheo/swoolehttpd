@@ -37,8 +37,7 @@ class SwooleHttpd //implements SwooleExtServerInterface
     use SwooleHttpd_Handler;
     use SwooleHttpd_Glue;
     use SwooleHttpd_SystemWrapper;
-    
-    use SwooleHttpd_Singleton;
+    use SwooleHttpd_SingletonHandle;
     
     
     const DEFAULT_OPTIONS = [
@@ -104,6 +103,7 @@ class SwooleHttpd //implements SwooleExtServerInterface
     }
 
     ///////////////////////////////
+    // 这段要独立成 trait
     protected function fixIndex()
     {
         // 需要调整 script_filename 等。
@@ -379,10 +379,9 @@ trait SwooleHttpd_RunFile
 }
 trait SwooleHttpd_SimpleHttpd
 {
-
-    // en...
     public function initHttp($request, $response)
     {
+        // 这里要处理一下如果有子类，
         SwooleContext::G(new SwooleContext())->initHttp($request, $response);
     }
     protected function deferGC()
@@ -494,7 +493,7 @@ trait SwooleHttpd_Glue
     {
         return SwooleContext::G()->frame;
     }
-    public static function FD()
+    public static function Fd()
     {
         return SwooleContext::G()->fd;
     }
@@ -503,22 +502,19 @@ trait SwooleHttpd_Glue
         return SwooleContext::G()->isWebSocketClosing();
     }
     /////////////
-    public static function SuperGlobal($replacement_object = null)
-    {
-        return SwooleSuperGlobal::G($replacement_object);
-    }
     public static function &GLOBALS($k, $v = null)
     {
-        return SwooleSuperGlobal::G()->_GLOBALS($k, $v);
+        return StaticReplacer::G()->_GLOBALS($k, $v);
     }
     public static function &STATICS($k, $v = null)
     {
-        return SwooleSuperGlobal::G()->_STATICS($k, $v, 1);
+        return StaticReplacer::G()->_STATICS($k, $v, 1);
     }
     public static function &CLASS_STATICS($class_name, $var_name)
     {
-        return SwooleSuperGlobal::G()->_CLASS_STATICS($class_name, $var_name);
+        return StaticReplacer::G()->_CLASS_STATICS($class_name, $var_name);
     }
+    
     public static function ReplaceDefaultSingletonHandler()
     {
         return SwooleCoroutineSingleton::ReplaceDefaultSingletonHandler();
@@ -579,7 +575,7 @@ trait SwooleHttpd_SystemWrapper
         return $ret;
     }
 }
-trait SwooleHttpd_Singleton
+trait SwooleHttpd_SingletonHandle
 {
     //@inteface;
     public function getStaticComponentClasses()

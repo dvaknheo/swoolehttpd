@@ -206,11 +206,15 @@ session_set_save_handler(\SessionHandlerInterface $handler)
 
     设置 session_handler
 
+### WebSocket 服务器方法
+Frame
+Fd
+IsClosing
 ### 高级静态方法
 
 这些静态方法，初学者可以忽略
 
-static G($object=null) *DuckPhp 通用*
+static G($object=null)
 
     G 函数，可替换单例。
 ReplaceDefaultSingletonHandler()
@@ -352,16 +356,16 @@ SwooleHttpd  重写了 可变单例 G 函数的实现，使得做到协程单例
 ### class SwooleCoroutineSingleton
 
     用于协程单例,把主进程单例复制到协程单例
-    public static function ReplaceDefaultSingletonHandler()
-    public static function SingletonInstance($class,$object)
+    public static function ReplaceDefaultSingletonHandler() //替换默认Handler
+    public static function SingletonInstance($class,$object) // handelr 实现
     public static function GetInstance($cid,$class)
     public static function SetInstance($cid,$class,$object)
-    public static function DumpString()
+    public static function DumpString()  // 打印
     public function cleanUp()
-    public function forkMasterInstances($classes,$exclude_classes=[])
-    public function forkAllMasterClasses()
+    public function forkMasterInstances($classes,$exclude_classes=[]) //把主协程的实例扩充到协程
+    public function forkAllMasterClasses() // 主协程的 G 都扩充到 协程， 和上面例子不同的是...
     public function _DumpString()
-    public static function Dump()
+    public static function Dump() 
 
 ### class SwooleContext
 

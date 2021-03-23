@@ -22,6 +22,21 @@ class SwooleCoroutineSingleton
         define('__SINGLETONEX_REPALACER', self::class . '::'.'SingletonInstance');
         return true;
     }
+    public static function getLegencyObject($class)
+    {
+        //深挖 宏之前的代码
+        $ref = new \ReflectionClass($class);
+        $prop = $ref->getProperty('_instances'); //OK Get It
+        if (!$prop) {
+            return null;
+        }
+        $prop->setAccessible(true);
+        $array = $prop->getValue();
+        if (empty($array[$class])) {
+            return null;
+        }
+        return  $array[$class];
+    }
     public static function SingletonInstance($class, $object)
     {
         $cid = Coroutine::getuid();
@@ -39,7 +54,11 @@ class SwooleCoroutineSingleton
                     return $me;
                 }
             }
-            
+            $me = $this->getLegencyObject($class)
+            if ($me !== null) {
+                self::$_instances[0][$class]=$me;
+                return $me;
+            }
             $me = new $class();
             if (isset(self::$_instances[$cid])) {
                 self::$_instances[$cid][$class] = $me;

@@ -1,12 +1,12 @@
 {
-    "name": "dnmvcs/swoolehttpd",
+    "name": "dvaknheo/swoolehttpd",
     "description": "A Swoole Http Server in 2019",
     "type": "library",
     "keywords": [
         "framework",
         "swoole"
     ],
-    "homepage": "https://www.github.com/dvaknheo/SwooleHttpd",
+    "homepage": "https://www.github.com/dvaknheo/swoolehttpd",
     "license": "MIT",
     "authors": [{
         "name": "davknheo",
