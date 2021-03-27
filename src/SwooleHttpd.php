@@ -105,10 +105,6 @@ class SwooleHttpd //implements SwooleExtServerInterface
         if ($ex instanceof ExitException) {
             return;
         }
-        if ($ex instanceof Swoole404Exception) {
-            static::OnShow404();
-            return;
-        }
         static::OnException($ex);
     }
     protected function onHttpClean()
