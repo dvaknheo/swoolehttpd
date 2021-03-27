@@ -17,7 +17,6 @@ class SwooleSuperGlobal
     public $_POST;
     public $_REQUEST;
     public $_SERVER = [];
-    public $_ENV;
     public $_COOKIE = [];
     public $_SESSION;
     public $_FILES = [];
@@ -51,7 +50,6 @@ class SwooleSuperGlobal
         $this->_POST = $request->post ?? [];
         $this->_COOKIE = $request->cookie ?? [];
         $this->_REQUEST = array_merge($request->get ?? [], $request->post ?? []);
-        $this->_ENV = &$_ENV;
         
         $this->_SERVER = $_SERVER;
         if (isset($this->_SERVER['argv'])) {
