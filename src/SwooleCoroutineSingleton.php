@@ -54,7 +54,7 @@ class SwooleCoroutineSingleton
                     return $me;
                 }
             }
-            $me = $this->getLegencyObject($class);
+            $me = self::getLegencyObject($class);
             if ($me !== null) {
                 self::$_instances[0][$class]=$me;
                 return $me;

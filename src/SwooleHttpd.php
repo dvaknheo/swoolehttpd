@@ -158,7 +158,7 @@ class SwooleHttpd //implements SwooleExtServerInterface
     }
     public function init(array $options, object $context = null)
     {
-        $object = $this->checkOverride($options);
+        $object = $this;//$this->checkOverride($options);
         return $object->initAfterOverride($options, $context);
     }
     public function createServer()
@@ -182,10 +182,7 @@ class SwooleHttpd //implements SwooleExtServerInterface
         $this->options = $options = array_merge($this->options, $options);
         $this->options['http_handler_basepath'] = rtrim((string)realpath($this->options['http_handler_basepath']), '/').'/';        
         
-        $this->server = $this->options['swoole_server'];
-        if (!$this->server) {
-           $this->createServer();
-        }
+        $this->createServer();
         /////////
         
         
@@ -205,14 +202,26 @@ class SwooleHttpd //implements SwooleExtServerInterface
             $this->server->on('mesage', [$this,'onMessage']);
             $this->server->on('open', [$this,'onOpen']);
         }
+        if($this->options['http_app_class']){
+            $this->initApp();
+        }
+        
         
         ////[[[[
         if ($this->options['enable_coroutine']) {
             Runtime::enableCoroutine();
         }
         SwooleCoroutineSingleton::ReplaceDefaultSingletonHandler();
-        ////]]]]
+        
         return $this;
+    }
+    protected function initApp()
+    {
+        $app=$this->options['http_app_class'];
+        $app::G()->options['skip_404_handler'] = true;
+        $app::assignExceptionHandler(ExitException::class,function(){});
+        $app::system_wrapper_replace(static::system_wrapper_get_providers());
+     
     }
     public function run()
     {
@@ -319,6 +328,7 @@ trait SwooleHttpd_Handler
     public function _OnException($ex)
     {
         static::header('', true, 500);
+        
         if ($this->options['http_exception_handler']) {
             ($this->options['http_exception_handler'])($ex);
             return;
@@ -483,11 +493,25 @@ trait SwooleHttpd_Runner
             }
         }
     }
+    public function _OnServerRequest()
+    {
+        $app = $this->options['http_app_class'];
+        $classes = $app::G()->getDynamicComponentClasses();
+        $exclude_classes = static::G()->getDynamicComponentClasses();
+        static::G()->forkMasterInstances($classes, $exclude_classes);
+        
+        $flag= $app::G()->run();
+        if (!$flag) {
+            $app::On404();
+        }
+        return true;
+    }
     
     protected function onHttpRun($request, $response)
     {
         if ($this->options['http_app_class']) {
             $this->old_autoloads = spl_autoload_functions();
+            $this->_OnServerRequest();
             return true;
         }
         if ($this->options['http_handler']) {
