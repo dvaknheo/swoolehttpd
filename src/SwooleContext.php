@@ -163,7 +163,8 @@ class SwooleContext
         if (!$this->is_session_started) {
             return;
         }
-        $this->session_handler->write($this->session_id, serialize($this->_SESSION));
+        $session = (__SUPERGLOBAL_CONTEXT)()->_SESSION;
+        $this->session_handler->write($this->session_id, serialize($session));
         (__SUPERGLOBAL_CONTEXT)()->_SESSION = null;
     }
     public function create_sid()

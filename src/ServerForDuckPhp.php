@@ -12,16 +12,15 @@ use DuckPhp\Core\App;
 class HttpServerForDuckPhp extends HttpServer
 {
     use SwooleSingleton;
-    protected $context_class;
     public function init($options = [], $context = null)
     {
-        $options['http_handler'] = [static::class,'RunSwoole'];
+        $ret = parent::init($options, $context);
+        $options['http_handler'] = [static::class,'OnServerRequest'];
         SwooleHttpd::G()->init($options, null);
-        $this->replaceInstances();
         
         App::G()->options['skip_404_handler'] = true;
-        App::SetExceptionHandle(WorkermanHttpd404Exception::class,function(){});
-        App::system_wrapper_replace(SwooleHttpd::system_wrapper_get_providers());  //  替换系统函数
+        App::assignExceptionHandler(WorkermanHttpd404Exception::class,function(){});
+        App::system_wrapper_replace(SwooleHttpd::system_wrapper_get_providers());
         
         return $this;
     }
@@ -30,48 +29,18 @@ class HttpServerForDuckPhp extends HttpServer
         SwooleHttpd::G()->run();
     }
     /////////////////////////////
-    protected function replaceInstances()
+    public static function OnServerRequest()
     {
-        $server = SwooleHttpd::G();
-        $classes = ($this->context_class)::G()->getStaticComponentClasses();
-        // Ext 那些也要追加。
-        
-        $classes[] = $this->context_class;
-        $instances = [];
-        foreach ($classes as $class) {
-            $instances[$class] = $class::G();
-        }
-        $flag = SwooleHttpd::ReplaceDefaultSingletonHandler();
-        if (!$flag) {
-            return;
-        }
-        
-        // replace G method again;
-        static::G($this);
-        SwooleHttpd::G($server);
-        foreach ($instances as $class => $object) {
-            $class = (string)$class;
-            $class::G($object);
-        }
+        return static::G()->_OnServerRequest();
     }
-    public static function RunSwoole()
-    {
-        return static::G()->_RunSwoole();
-    }
-    public function _RunSwoole()
+    public function _OnServerRequest()
     {
         $classes = App::G()->getDynamicComponentClasses();
         $exclude_classes = SwooleHttpd::G()->getDynamicComponentClasses();
         SwooleHttpd::G()->forkMasterInstances($classes, $exclude_classes);
         
-        $ret = App::G()->run();
-        
-        if ($ret) {
-            return true;
-        }
-        if (SwooleHttpd::G()->is_with_http_handler_root()) {
-            SwooleHttpd::G()->forkMasterClassesToNewInstances();
-            return false;
+        if (!$flag) {
+            App::On404();
         }
         return true;
     }

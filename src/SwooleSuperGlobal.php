@@ -80,26 +80,42 @@ class SwooleSuperGlobal
         
         return $this;
     }
+    public static function DefineSuperGlobalContext()
+    {
+        if (!defined('__SUPERGLOBAL_CONTEXT')) {
+            define('__SUPERGLOBAL_CONTEXT', static::class .'::G');
+            return true;
+        }
+        return false;
+    }
+    public static function LoadSuperGlobalAll()
+    {
+        return static::G()->_LoadSuperGlobalAll();
+    }
+    public static function SaveSuperGlobalAll()
+    {
+        return static::G()->_SaveSuperGlobalAll();
+    }
     public function _LoadSuperGlobalAll()
     {
-    
-        //
+        $this->_GET = $_GET;
+        $this->_POST = $_POST;
+        $this->_REQUEST = $_REQUEST;
+        $this->_SERVER = $_SERVER;
+        //$this->_ENV = $_ENV;
+        $this->_COOKIE = $_COOKIE;
+        $this->_SESSION = $_SESSION ?? null;
+        $this->_FILES = $_FILES;
+    }
+    public function _SaveSuperGlobalAll()
+    {
         $_GET = $this->_GET;
         $_POST = $this->_POST;
         $_REQUEST = $this->_REQUEST;
         $_SERVER = $this->_SERVER;
-        // $_ENV       =&$this->_ENV; no need
+        //$_ENV = $this->_ENV;
         $_COOKIE = $this->_COOKIE;
         $_SESSION = $this->_SESSION;
         $_FILES = $this->_FILES;
-    }
-    ////////////////////////////
-    public static function DefineSuperGlobalContext()
-    {
-        if(!defined('__SUPERGLOBAL_CONTEXT')){
-            define('__SUPERGLOBAL_CONTEXT',static::class .'::G');
-            return true;
-        }
-        return false;
     }
 }

@@ -38,14 +38,14 @@ class SwooleHttpd //implements SwooleExtServerInterface
     use SwooleHttpd_Glue;
     use SwooleHttpd_SystemWrapper;
     use SwooleHttpd_SingletonHandle;
+    use SwooleHttpd_Runner;
     
-    
-    const DEFAULT_OPTIONS = [
-            'swoole_server' => null,
-            'swoole_server_options' => [],
+    public $options = [
             'host' => '127.0.0.1',
             'port' => 0,
+            'swoole_server_options' => [],   
             
+            'http_app_class' => null,
             'http_handler' => null,
             'http_handler_basepath' => '',
             'http_handler_root' => null,
@@ -69,10 +69,6 @@ class SwooleHttpd //implements SwooleExtServerInterface
             'silent_mode' => false,
             'enable_coroutine' => true,
         ];
-        
-    const MAX_PATH_LEVEL = 1000;
-    
-    public $options;
     public $server = null;
     
     public $http_handler = null;
@@ -102,155 +98,7 @@ class SwooleHttpd //implements SwooleExtServerInterface
         exit($code);
     }
 
-    ///////////////////////////////
-    // 这段要独立成 trait
-    protected function fixIndex()
-    {
-        // 需要调整 script_filename 等。
-        $index_file = 'index.php';
-        $index_path = '/'.$index_file;
-        $path_info = $_SERVER['PATH_INFO'];
-        if (substr($path_info, 0, strlen($index_path)) === $index_path) {
-            if (strlen($path_info) === strlen($index_path)) {
-                $_SERVER['PATH_INFO'] = '';
-            } else {
-                if ($index_path.'/' === substr($path_info, 0, strlen($index_path) + 1)) {
-                    $_SERVER['PATH_INFO'] = substr($path_info, strlen($index_path) + 1);
-                }
-            }
-        }
-    }
-    
-    protected function onHttpRun($request, $response)
-    {
-        if ($this->options['http_handler']) {
-            $this->auto_clean_autoload = false;
-            if ($this->options['enable_fix_index']) {
-                $this->fixIndex();
-            }
-            
-            $flag = ($this->options['http_handler'])();
-            if ($flag) {
-                return true;
-            }
-            if (!$this->options['with_http_handler_root'] && !$this->options['http_handler_file']) {
-                return false;
-            }
-            $this->auto_clean_autoload = true;
-        }
-        $this->old_autoloads = spl_autoload_functions();
-        
-        if ($this->options['http_handler_root']) {
-            list($path, $document_root) = $this->prepareRootMode();
-            $flag = $this->runHttpFile($path, $document_root);
-            if ($flag) {
-                return;
-            }
-            if (!$this->options['with_http_handler_file'] || $this->options['http_handler']) {
-                return false;
-            }
-        }
-        if ($this->options['http_handler_file']) {
-            $path_info = $_SERVER['REQUEST_URI'];
-            $file = $this->options['http_handler_basepath'].$this->options['http_handler_file'];
-            $document_root = dirname($file);
-            $this->includeHttpPhpFile($file, $document_root, $path_info);
-            return;
-        }
-    }
-    protected function prepareRootMode()
-    {
-        $http_handler_root = $this->options['http_handler_basepath'].$this->options['http_handler_root'];
-        $http_handler_root = rtrim($http_handler_root, '/').'/';
-        
-        $document_root = $this->static_root?:rtrim($http_handler_root, '/');
-        $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-        
-        return [$path,$document_root];
-    }
-    
-    protected function runHttpFile($path, $document_root)
-    {
-        if (strpos($path, '/../') !== false || strpos($path, '/./') !== false) {
-            return false;
-        }
-        
-        $full_file = $document_root.$path;
-        if ($path === '/') {
-            $this->includeHttpPhpFile($document_root.'/index.php', $document_root, '');
-            return true;
-        }
-        if (is_file($full_file)) {
-            $this->includeHttpFullFile($full_file, $document_root, '');
-            return true;
-        }
-        if (!$this->options['enable_path_info']) {
-            if (is_dir($full_file)) {
-                $full_file = rtrim($full_file, '/').'/index.php';
-                if (is_file($full_file)) {
-                    $this->includeHttpFullFile($full_file, $document_root, '');
-                    return true;
-                }
-            }
-            return false;
-        }
-        $max = static::MAX_PATH_LEVEL;
-        $offset = 0;
-        for ($i = 0;$i < $max;$i++) {
-            $offset = strpos($path, '.php/', $offset);
-            if (false === $offset) {
-                break;
-            }
-            $file = substr($path, 0, $offset).'.php';
-            $path_info = substr($path, $offset + strlen('.php'));
-            $file = $document_root.$file;
-            if (is_file($file)) {
-                $this->includeHttpPhpFile($file, $document_root, $path_info);
-                return true;
-            }
-            
-            $offset++;
-        }
-        
-        $dirs = explode('/', $path);
-        $prefix = '';
-        foreach ($dirs as $block) {
-            $prefix .= $block.'/';
-            $file = $document_root.$prefix.'index.php';
-            if (is_file($file)) {
-                $path_info = substr($path, strlen($prefix) - 1);
-                $this->includeHttpPhpFile($file, $document_root, $path_info);
-                return true;
-            }
-        }
-        return false;
-    }
-    protected function includeHttpFullFile($full_file, $document_root, $path_info = '')
-    {
-        $ext = pathinfo($full_file, PATHINFO_EXTENSION);
-        if ($ext === 'php') {
-            $this->includeHttpPhpFile($full_file, $document_root, $path_info);
-            return;
-        }
-        if (!$this->options['enable_not_php_file']) {
-            return;
-        }
-        $mime = mime_content_type($full_file);
-        static::Response()->header('Content-Type', $mime);
-        static::Response()->sendfile($full_file);
-        return;
-    }
-    protected function includeHttpPhpFile($file, $document_root, $path_info)
-    {
-        $_SERVER['PATH_INFO'] = $path_info;
-        $_SERVER['DOCUMENT_ROOT'] = $document_root;
-        $_SERVER['SCRIPT_FILENAME'] = $file;
-        chdir(dirname($file));
-        (function ($file) {
-            include $file;
-        })($file);
-    }
-    ///////////////////
+
     
     protected function onHttpException($ex)
     {
@@ -313,30 +161,35 @@ class SwooleHttpd //implements SwooleExtServerInterface
         $object = $this->checkOverride($options);
         return $object->initAfterOverride($options, $context);
     }
+    public function createServer()
+    {
+        $this->check_swoole();
+        
+        if (!$this->options['port']) {
+            echo static::class . ': No port ,set the port';
+            exit;
+        }
+        if (!$this->options['websocket_handler']) {
+            $this->server = new Http_Server($this->options['host'], (int) $this->options['port']);
+        } else {
+            echo static::class . ": use WebSocket\n";
+            $this->server = new Websocket_Server($this->options['host'], $this->options['port']);
+        }
+    }
     
     public function initAfterOverride(array $options, $server = null)
     {
-        $this->options = $options = array_merge(self::DEFAULT_OPTIONS, $options);
-        $this->server = $this->options['swoole_server'];
+        $this->options = $options = array_merge($this->options, $options);
         $this->options['http_handler_basepath'] = rtrim((string)realpath($this->options['http_handler_basepath']), '/').'/';        
-        if (!$this->server) {
-            $this->check_swoole();
-            
-            if (!$this->options['port']) {
-                echo static::class . ': No port ,set the port';
-                exit;
-            }
-            if (!$this->options['websocket_handler']) {
-                $this->server = new Http_Server($this->options['host'], (int) $this->options['port']);
-            } else {
-                echo static::class . ": use WebSocket\n";
-                $this->server = new Websocket_Server($this->options['host'], $this->options['port']);
-            }
-        }
-        if ($this->options['swoole_server_options']) {
-            $this->server->set($this->options['swoole_server_options']);
-        }
         
+        $this->server = $this->options['swoole_server'];
+        if (!$this->server) {
+           $this->createServer();
+        }
+        /////////
+        
+        
+        $this->server->set($this->options['swoole_server_options']);
         $this->server->on('request', [$this,'onRequest']);
         if ($this->server->setting['enable_static_handler'] ?? false) {
             $this->static_root = $this->server->setting['document_root'];
@@ -357,7 +210,6 @@ class SwooleHttpd //implements SwooleExtServerInterface
         if ($this->options['enable_coroutine']) {
             Runtime::enableCoroutine();
         }
-        
         SwooleCoroutineSingleton::ReplaceDefaultSingletonHandler();
         ////]]]]
         return $this;
@@ -397,7 +249,7 @@ trait SwooleHttpd_SimpleHttpd
         if (!$this->is_shutdown) {
             return;
         }
-        throw new \Exception("Shutdowning".date(DATE_ATOM));
+        throw new \Exception("Shutdowning...".date(DATE_ATOM));
     }
     public function onRequest($request, $response)
     {
@@ -430,7 +282,7 @@ trait SwooleHttpd_SimpleHttpd
         );
         ///////////////////
         $this->initHttp($request, $response);
-        SwooleSuperGlobal::G(new SwooleSuperGlobal())->mapToGlobal();
+        SwooleSuperGlobal::G(new SwooleSuperGlobal())->SaveSuperGlobalAll();
         $flag = true;
         try {
             $flag = $this->onHttpRun($request, $response);
@@ -610,4 +462,166 @@ trait SwooleHttpd_SingletonHandle
             $class::G($instances[$class]);
         }
     }
+}
+trait SwooleHttpd_Runner
+{
+    ///////////////////////////////
+    // 这段要独立成 trait
+    protected function fixIndex()
+    {
+        // 需要调整 script_filename 等。
+        $index_file = 'index.php';
+        $index_path = '/'.$index_file;
+        $path_info = $_SERVER['PATH_INFO'];
+        if (substr($path_info, 0, strlen($index_path)) === $index_path) {
+            if (strlen($path_info) === strlen($index_path)) {
+                $_SERVER['PATH_INFO'] = '';
+            } else {
+                if ($index_path.'/' === substr($path_info, 0, strlen($index_path) + 1)) {
+                    $_SERVER['PATH_INFO'] = substr($path_info, strlen($index_path) + 1);
+                }
+            }
+        }
+    }
+    
+    protected function onHttpRun($request, $response)
+    {
+        if ($this->options['http_app_class']) {
+            $this->old_autoloads = spl_autoload_functions();
+            return true;
+        }
+        if ($this->options['http_handler']) {
+            $this->auto_clean_autoload = false;
+            if ($this->options['enable_fix_index']) {
+                $this->fixIndex();
+            }
+            
+            $flag = ($this->options['http_handler'])();
+            if ($flag) {
+                return true;
+            }
+            if (!$this->options['with_http_handler_root'] && !$this->options['http_handler_file']) {
+                return false;
+            }
+            $this->auto_clean_autoload = true;
+        }
+        $this->old_autoloads = spl_autoload_functions();
+        
+        if ($this->options['http_handler_root']) {
+            list($path, $document_root) = $this->prepareRootMode();
+            /////
+            $flag = $this->runHttpFile($path, $document_root);
+            if ($flag) {
+                return true;
+            }
+            if (!$this->options['with_http_handler_file'] || $this->options['http_handler']) {
+                return false;
+            }
+        }
+        if ($this->options['http_handler_file']) {
+            $path_info = $_SERVER['REQUEST_URI'];
+            $file = $this->options['http_handler_basepath'].$this->options['http_handler_file'];
+            $document_root = dirname($file);
+            $this->includeHttpPhpFile($file, $document_root, $path_info);
+            return;
+        }
+    }
+    protected function prepareRootMode()
+    {
+        $http_handler_root = $this->options['http_handler_basepath'].$this->options['http_handler_root'];
+        $http_handler_root = rtrim($http_handler_root, '/').'/';
+        
+        $document_root = $this->static_root?:rtrim($http_handler_root, '/');
+        
+        $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        return [$path,$document_root];
+    }
+    
+    protected function runHttpFile($path, $document_root)
+    {
+        if (strpos($path, '/../') !== false || strpos($path, '/./') !== false) {
+            return false;
+        }
+        
+        $full_file = $document_root.$path;
+        if ($path === '/') {
+            $this->includeHttpPhpFile($document_root.'/index.php', $document_root, '');
+            return true;
+        }
+        if (is_file($full_file)) {
+            $this->includeHttpFullFile($full_file, $document_root, '');
+            return true;
+        }
+        if (!$this->options['enable_path_info']) {
+            if (is_dir($full_file)) {
+                $full_file = rtrim($full_file, '/').'/index.php';
+                if (is_file($full_file)) {
+                    $this->includeHttpFullFile($full_file, $document_root, '');
+                    return true;
+                }
+            }
+            return false;
+        }
+        $max = 1024;
+        $offset = 0;
+        for ($i = 0;$i < $max;$i++) {
+            $offset = strpos($path, '.php/', $offset);
+            if (false === $offset) {
+                break;
+            }
+            $file = substr($path, 0, $offset).'.php';
+            $path_info = substr($path, $offset + strlen('.php'));
+            $file = $document_root.$file;
+            if (is_file($file)) {
+                $this->includeHttpPhpFile($file, $document_root, $path_info);
+                return true;
+            }
+            
+            $offset++;
+        }
+        
+        $dirs = explode('/', $path);
+        $prefix = '';
+        foreach ($dirs as $block) {
+            $prefix .= $block.'/';
+            $file = $document_root.$prefix.'index.php';
+            if (is_file($file)) {
+                $path_info = substr($path, strlen($prefix) - 1);
+                $this->includeHttpPhpFile($file, $document_root, $path_info);
+                return true;
+            }
+        }
+        return false;
+    }
+    protected function includeHttpFullFile($full_file, $document_root, $path_info = '')
+    {
+        $ext = pathinfo($full_file, PATHINFO_EXTENSION);
+        if ($ext === 'php') {
+            $this->includeHttpPhpFile($full_file, $document_root, $path_info);
+            return;
+        }
+        if (!$this->options['enable_not_php_file']) {
+            return;
+        }
+        $this->sendfile($full_file);
+    }
+    protected function includeHttpPhpFile($file, $document_root, $path_info)
+    {
+        $_SERVER['PATH_INFO'] = $path_info;
+        $_SERVER['DOCUMENT_ROOT'] = $document_root;
+        $_SERVER['SCRIPT_FILENAME'] = $file;
+        $oldpath = getcwd();
+        chdir(dirname($file));
+        (function ($file) {
+            include $file;
+        })($file);
+        chdir($oldpath);
+    }
+    protected function sendfile($full_file)
+    {
+        $mime = mime_content_type($full_file);
+        static::Response()->header('Content-Type', $mime);
+        static::Response()->sendfile($full_file);
+    }
+    ///////////////////
 }
