@@ -131,8 +131,12 @@ class SwooleCoroutineSingleton
                 if (in_array($real_class, $exclude_classes)) {
                     continue;
                 }
-                self::$_instances[$cid][$class] = new $class();
-                
+                $oldobject =self::getLegencyObject($class);
+                if($oldobject){
+                    self::$_instances[$cid][$class] = clone $oldobject;
+                }else{
+                    self::$_instances[$cid][$class] = new $class();
+                }
                 continue;
             }
             $real_class = get_class(self::$_instances[0][$class]);

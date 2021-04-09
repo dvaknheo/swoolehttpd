@@ -42,7 +42,7 @@ class SwooleHttpd //implements SwooleExtServerInterface
     
     public $options = [
             'host' => '127.0.0.1',
-            'port' => 0,
+            'port' => 8080,
             'swoole_server_options' => [],   
             
             'http_app_class' => null,
@@ -100,6 +100,7 @@ class SwooleHttpd //implements SwooleExtServerInterface
     }
     public function set_http_exception_handler($ex)
     {
+        $this->options['http_exception_handler'] = $ex;
     }
     ////
 
@@ -114,6 +115,7 @@ class SwooleHttpd //implements SwooleExtServerInterface
     }
     protected function onHttpClean()
     {
+return;
         if (!$this->auto_clean_autoload) {
             return;
         }
@@ -456,7 +458,8 @@ trait SwooleHttpd_Runner
         $classes = $app::G()->getDynamicComponentClasses();
         $exclude_classes = $this->getDynamicComponentClasses();
         $this->forkMasterInstances($classes, $exclude_classes);
-        
+        (__SUPERGLOBAL_CONTEXT)()->_SERVER['DOCUMENT_ROOT'] = $_SERVER['DOCUMENT_ROOT']=rtrim( $app::G()->options['path'],'/');
+        (__SUPERGLOBAL_CONTEXT)()->_SERVER['SCRIPT_FILENAME'] = $_SERVER['SCRIPT_FILENAME']=$app::G()->options['path'].'index.php';
         $flag= $app::G()->run();
         if (!$flag) {
             $app::On404();
