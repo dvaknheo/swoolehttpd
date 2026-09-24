@@ -1,5 +1,58 @@
 # SwooleHttpd
 
+## 1.1.5 复兴版：现在真的能跑了
+
+这个库从 2021 年起就处于"看着完整、实际跑不起来"的状态（拼写错误、指向已删除类的测试、
+对接的是 2019 年的 DuckPhp API）。1.1.5 把它修好并接到新版 DuckPhp 上。
+
+**实测环境**：Debian 12 (WSL2) / PHP 8.2.32 / Swoole 6.2.3 / `dvaknheo/duckphp` 1.4.1。
+**端到端验证**：`bash dev/test.sh`（28 项）与 `bash dev/test-duckphp.sh`（22 项，含并发不串数据），当前全绿。
+
+### 在 Swoole 上跑 DuckPhp 应用
+
+```bash
+php cli.php run --http_server=SwooleHttpd/HttpServerForDuckPhp --port=9528
+```
+
+`HttpServerForDuckPhp` 实现 DuckPhp 官方的 `DuckPhp\HttpServer\HttpServerInterface`，
+所以走的是框架给的插件位。详见 **[docs/duckphp-integration.md](docs/duckphp-integration.md)**。
+
+### ⚠️ 三条必须先知道的事
+
+1. **真超全局变量在协程间不隔离。** PHP 的 `$_GET`/`$_SERVER`/`$_SESSION` 在 Swoole 下
+   是所有协程共享的（已实测）。请求开始时会把数据写进真超全局，但那只对
+   **"让出之前就读"的传统代码**有效；一旦 `Co::sleep`、查库、RPC 之后再读就可能串。
+   **协程安全的唯一真相是 `SwooleHttpd::SG()->_GET` / `->_SERVER` / `->_SESSION`。**
+   DuckPhp 走 `__SUPERGLOBAL_CONTEXT`，读的正是这个对象存储，所以是安全的。
+2. **每请求只 `end()` 一次响应。** 用 `ob_start()` 缓冲，收尾时发一次；
+   `sendfile()` 之类的路径会提前标记，不会再二次 `end()`。
+3. **协程隔离靠 `CoroutinePhaseContainer`。** 它给每个请求协程一份**独立**的组件容器
+   （含 `#public` 桶），结构信息播种 + 组件 `clone`；连接类组件请在
+   `http_app_renew_classes` 里声明，它们每协程**新建连接**。
+   **自己注册闭包式路由钩子会破坏隔离** —— 原因和改法见集成文档第 4 节。
+
+### 1.1.5 修掉的主要问题
+
+| 问题 | 后果 |
+|---|---|
+| `SwooleContext.php` 里 `use Swool\Coroutine`（少个 e） | `session_start()` 首次访问必然 `Class not found` 崩 |
+| `session_*` 门面调 `SwooleSuperGlobal` 上的方法，而那些方法在 `SwooleContext` 上 | 会话功能整体不可用 |
+| `$server->on('mesage', ...)` 拼错 | WebSocket 收消息永久失效 |
+| `onShutdown()` 把 `[类名,'方法']` 当函数名调用 | **整个 worker 被杀** |
+| `ob_start` 回调里调 `response->end()` | 大响应二次 `end()` 丢数据；空响应不 `end()` 挂到超时 |
+| `setcookie` / `mt_rand` 收到 ini 的字符串值 | 严格类型下抛 TypeError |
+| `http_handler_file` 模式返回 null | 入口文件跑完后又追加 404 |
+| `StaticReplacer` 不在动态组件列表 | `GLOBALS()`/`STATICS()` 跨请求泄漏 |
+| `base_class` 选项声明了却从不读 | 文档化的功能根本不存在 |
+| `regShutDown`/`regShutdown` 与 cid 映射方向写反 | 子协程拿到错误实例 |
+
+还有一批**幻影 API**（README 和自动生成的测试引用、代码里却没有）已经补上或删掉：
+`SG()` / `ThrowOn()` / `Throw404()` / `exit_request()` / `set_http_404_handler()` /
+`Swoole404Exception` 已实现；`SwooleExt*` 那套旧接口和 `src/SimpleHttpd.php` 已删除。
+`tests/` 里那些自动生成的空壳测试也已移除 —— 真正的验证在 `dev/` 下。
+
+---
+
 ## SwooleHttpd 是什么
 
 SwooleHttpd 致力于 Swoole 代码和 fpm 平台 代码几乎不用修改就可以双平台运行。
@@ -58,34 +111,42 @@ SwooleHttpd::RunQuickly($options);
 
 ### 选项
 
-RunQuickly 的 默认选项 $$options  SwooleHttpd::DEFAULT_OPTIONS 有
-
+RunQuickly 的默认选项（就是 `SwooleHttpd::$options`，没有 `DEFAULT_OPTIONS` 常量）：
 
 ```php
-const DEFAULT_OPTIONS=[
-        'swoole_server'=>null,          // swoole_http_server 对象，留空，则用 host,port 创建
-        'swoole_options'=>[],           // swoole_http_server 的配置，合并入 swoole_server
-        
-        'host'=>'0.0.0.0',              // IP
-        'port'=>0,                      // 端口
-        
+public $options = [
+        'host'=>'127.0.0.1',            // IP
+        'port'=>8080,                   // 端口
+        'swoole_server'=>null,          // 传入现成的 Swoole\Http\Server 对象；留空则用 host,port 新建
+        'swoole_server_options'=>[],    // 透传给 Swoole\Http\Server::set()
+
+        'http_app_class'=>null,         // DuckPhp 应用类（配 HttpServerForDuckPhp 用）
+        'http_app_options'=>[],         // 额外透传给该应用 init() 的选项
+        'http_app_path_document'=>'public', // 项目里的文档根；不存在则回退到项目根
+        'http_app_renew_classes'=>[],   // 每协程新建连接（而非 clone）的组件类名
+
         'http_handler'=>null,           // 启动方法，返回 false 表示 404
-        'http_handler_basepath'=>'',    // 基础目录目录 ，搭配用于配置 http_handler_root ，http_handler_file
-        'http_handler_root'=>'',        // PHP 目录模式。
-        'http_handler_file'=>'',        // 映射所有 URI 到单一文件模式
-        'http_exception_handler'=>null, // 异常处理回调, set_exception_handler 会覆盖这个配置
+        'http_handler_basepath'=>'',    // 基础目录，搭配 http_handler_root / http_handler_file
+        'http_handler_root'=>null,      // PHP 目录模式
+        'http_handler_file'=>null,      // 映射所有 URI 到单一文件模式
+        'http_exception_handler'=>null, // 异常处理回调
         'http_404_handler'=>null,       // 404 的处理回调
 
-        'with_http_handler_root'=>false,// 复用 http_handler_root 404 后会从目录里载入
-        'with_http_handler_file'=>false,// 复用 http_handler_root 404 后会从文件里载入
+        'with_http_handler_root'=>false,// http_handler 返回 false 后继续走目录模式
+        'with_http_handler_file'=>false,// 目录模式没命中后继续走单文件模式
 
-        'enable_fix_index'=>true,       // http_handler 模式下，修正 index.php 为空
+        'enable_fix_index'=>true,       // http_handler 模式下，修正 index.php
         'enable_path_info'=>true,       // http_handler_root 允许 path_info
-        'enable_not_php_file'=>true,    // http_handler_root 允许包含资源文件
-        
-        'base_class'=>null,             // 替换 SwooleHttpd 类初始化
-        'silent_mode'=>false,           // 安静模式，不在命令行中提示服务启动信息。
-        'enable_coroutine'=>true,       // 启用 \Swoole\Runtime::enableCoroutine();
+        'enable_resource_file'=>true,   // http_handler_root 允许发送资源文件
+
+        'websocket_open_handler'=>null,
+        'websocket_handler'=>null,
+        'websocket_exception_handler'=>null,
+        'websocket_close_handler'=>null,
+
+        'base_class'=>'',               // 用另一个类接管初始化（1.1.5 起真正生效）
+        'silent_mode'=>false,           // 不在命令行提示服务启动信息
+        'enable_coroutine'=>true,       // 调用 \Swoole\Runtime::enableCoroutine()
 ];
 ```
 
@@ -118,7 +179,7 @@ SwooleHttpd 有三种模式
     这和 document_root 一样。读取php文件，然后运行的模式。
     注意重复包含类会导致异常.
     with_http_handler_file  打开时 找不到文件会进入 http_handler_file 处理。
-    enable_not_php_file 允许读取资源文件，如图片，将会在浏览器显示图片。
+    enable_resource_file 允许读取资源文件，如图片，将会在浏览器显示图片（走 `sendfile()`）。
 3. `http_handler_file`
 
     这种模式是把 url 都转向 文件如 index.php 来处理。
@@ -246,7 +307,7 @@ swoole 的协程使得 跨领域的 global ,static, 类内 static 变量不可�
 
 ```php
 <?php
-use DuckPhp\SwooleHttpd as DN;
+use SwooleHttpd\SwooleHttpd as DN;
 require (__DIR__.'/../autoload.php');
 
 global $n;
@@ -404,28 +465,29 @@ SwooleHttpd  重写了 可变单例 G 函数的实现，使得做到协程单例
 
 ### 基本流程 init()
 
-    开始检测是否有 base_class ，如果有，则替换当前单例为 base_class 的实现，
-    返回 base_class 的 G 实例的 init
+    1. 如果有 base_class，把当前单例换成该类的实例，并转交给它的 init()（1.1.5 起生效）
+    2. 载入选项；server 对象可由 host/port 新建，也可由 $server 形参或
+       'swoole_server' 选项注入
+    3. $server->set(swoole_server_options)；注册 request / open / message 事件
+    4. 若配置了 http_app_class，则 initApp()：装 CoroutinePhaseContainer、
+       以 cli_enable=false 初始化 DuckPhp 应用、把系统函数指向 Swoole、
+       给 Swoole\ExitException 注册空处理器
+    5. Runtime::enableCoroutine()；SwooleCoroutineSingleton::ReplaceDefaultSingletonHandler()
     
-    载入选项 如果没有 server 对象则根据配置创建一个。
-    
-    SwooleCoroutineSingleton::ReplaceDefaultSingletonHandler(); 替换单例
-    宏 DuckPhp_SUPER_GLOBAL_REPALACER 定为 SwooleSuperGlobal::G
-    宏 DuckPhp_SYSTEM_WRAPPER_INSTALLER 定为 static::system_wrapper_get_providers;
+    关于协程隔离与 DuckPhp 对接，见 docs/duckphp-integration.md。
 
 ### 基本流程 run()
 
     如果不是安静模式，则打印相关信息
-    $this->server->start();
+    $this->server->start();     阻塞，直到服务器退出
 
 ### 基本流程 onRequest()
 
     onRequest 实现于 trait SwooleHttpd_SimpleHttpd
-    trait SwooleHttpd_SimpleHttpd （估计现实也没人会用到 SwooleHttpd_SimpleHttpd 而不用 SwooleHttpd ）
     一开始就 defer 手动 gc
-    SwooleCoroutineSingleton::EnableCurrentCoSingleton 开启 onRequest 协程的协程单例
+    SwooleCoroutineSingleton::EnableCurrentCoSingleton 开启本请求协程的实例空间
     
-    defer 配合 ob_start 处理直接 echo 输出
+    ob_start() 捕获直接 echo 的输出（收尾时一次性 end()，见 docs 第 5 节）
     
     SwooleContext 初始化
     SwooleSuperGlobal::G 初始化

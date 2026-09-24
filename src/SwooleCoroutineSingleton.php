@@ -37,11 +37,49 @@ class SwooleCoroutineSingleton
         }
         return  $array[$class];
     }
+    /**
+     * Resolve the instance space ("coroutine id") that should serve the caller.
+     *
+     * Rules, in order:
+     *   1. outside a coroutine            -> 0 (the master space)
+     *   2. explicitly bound via cid_map   -> that space
+     *   3. this coroutine owns a space    -> its own
+     *   4. otherwise                      -> the nearest ancestor's space
+     *
+     * Rule 4 is what makes a child coroutine spawned inside a request
+     * (Swoole\Coroutine::create()/go()) share the request's components instead of
+     * building a second, un-initialised copy of each of them. Rule 3 keeps the
+     * documented use of EnableCurrentCoSingleton() working: a child that asks for
+     * its own space still gets one.
+     */
+    public static function GetOwnerCid(): int
+    {
+        $cid = Coroutine::getCid();
+        if ($cid <= 0) {
+            return 0;
+        }
+        if (isset(self::$cid_map[$cid])) {
+            return self::$cid_map[$cid];
+        }
+        if (isset(self::$_instances[$cid])) {
+            return $cid;
+        }
+        $pcid = Coroutine::getPcid($cid);
+        while ($pcid > 0) {
+            if (isset(self::$cid_map[$pcid])) {
+                return self::$cid_map[$pcid];
+            }
+            if (isset(self::$_instances[$pcid])) {
+                return $pcid;
+            }
+            $pcid = Coroutine::getPcid($pcid);
+        }
+
+        return 0;
+    }
     public static function SingletonInstance($class, $object)
     {
-        $cid = Coroutine::getuid();
-        $cid = ($cid <= 0)?0:$cid;
-        $cid = $cid_map[$cid] ?? $cid;
+        $cid = self::GetOwnerCid();
         
         if ($object === null) {
             $me = self::$_instances[$cid][$class] ?? null;
@@ -89,41 +127,39 @@ class SwooleCoroutineSingleton
         if ($cid === 0) {
             return;
         }
+        $current_cid = Coroutine::getCid();
+        if ($current_cid <= 0) {
+            return;
+        }
         if ($cid !== null) {
-            $current_cid = Coroutine::getuid();
-            self::$cid_map[$cid] = $current_cid;
+            // Bind *this* coroutine to the instance space of another one.
+            // (The original code wrote the mapping the other way round, so this
+            // overload silently did nothing — cid_map was never hit.)
+            self::$cid_map[$current_cid] = $cid;
             Coroutine::defer(
-                function () use ($cid) {
-                    unset(self::$cid_map[$cid]);
+                function () use ($current_cid) {
+                    unset(self::$cid_map[$current_cid]);
                 }
             );
             return;
         }
-        $cid = Coroutine::getuid();
-        if ($cid <= 0) {
+        // Give this coroutine its own instance space, dropped when it ends.
+        if (isset(self::$_instances[$current_cid])) {
             return;
         }
-        if (isset(self::$_instances[$cid])) {
-            return;
-        }
-        self::$_instances[$cid] = [];
+        self::$_instances[$current_cid] = [];
         Coroutine::defer(
-            function () {
-                $cid = Coroutine::getuid();
-                if ($cid <= 0) {
-                    return;
-                }
-                unset(self::$_instances[$cid]);
+            function () use ($current_cid) {
+                unset(self::$_instances[$current_cid]);
             }
         );
     }
     public function forkMasterInstances($classes, $exclude_classes = [])
     {
-        $cid = Coroutine::getuid();
+        $cid = self::GetOwnerCid();
         if ($cid <= 0) {
             return;
         }
-        $cid = self::$cid_map[$cid] ?? $cid;
         
         foreach ($classes as $class) {
             if (!isset(self::$_instances[0][$class])) {
@@ -154,7 +190,10 @@ class SwooleCoroutineSingleton
     
     public function forkAllMasterClasses()
     {
-        $cid = Coroutine::getuid();
+        $cid = self::GetOwnerCid();
+        if ($cid <= 0) {
+            return;
+        }
         foreach (self::$_instances[0] as $class => $object) {
             if (!isset($object)) {
                 continue;
@@ -165,8 +204,8 @@ class SwooleCoroutineSingleton
     ///////////////////////
     public function _DumpString()
     {
-        $cid = Coroutine::getuid();
-        $ret = "==== SwooleCoroutineSingleton List Current cid [{$cid}] ==== ;\n";
+        $my_cid = self::GetOwnerCid();
+        $ret = "==== SwooleCoroutineSingleton List Current cid [{$my_cid}] ==== ;\n";
         foreach (self::$_instances as $cid => $v) {
             foreach ($v as $cid_class => $object) {
                 $hash = $object?md5(spl_object_hash($object)):'';

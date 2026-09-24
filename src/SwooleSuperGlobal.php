@@ -13,12 +13,12 @@ class SwooleSuperGlobal
 {
     use SwooleSingleton;
     
-    public $_GET;
-    public $_POST;
-    public $_REQUEST;
+    public $_GET = [];
+    public $_POST = [];
+    public $_REQUEST = [];
     public $_SERVER = [];
     public $_COOKIE = [];
-    public $_SESSION;
+    public $_SESSION = null;
     public $_FILES = [];
     public $is_inited = false;
     
@@ -28,23 +28,28 @@ class SwooleSuperGlobal
     }
     public function init()
     {
-        // 这里
-        $cid = Coroutine::getuid();
-        if ($cid <= 0) {
-            return;
-        }
+        // Define the macro as early as possible: DuckPhp reads it to decide whether
+        // to take superglobals from us instead of the real $_GET/$_SERVER.
         static::DefineSuperGlobalContext();
-        
+
+        $cid = Coroutine::getCid();
+        if ($cid <= 0) {
+            // Not inside a coroutine (e.g. the master process): nothing request-scoped to fill.
+            return $this;
+        }
+
         if ($this->is_inited) {
             return $this;
         }
-        $this->is_inited = true;
-        
+
         $request = SwooleHttpd::Request();
-        
+
         if (!$request) {
-            return;
+            // No request bound yet. Deliberately do NOT set is_inited, so a later
+            // call (once the request is available) can still populate us.
+            return $this;
         }
+        $this->is_inited = true;
         
         $this->_GET = $request->get ?? [];
         $this->_POST = $request->post ?? [];
@@ -71,8 +76,11 @@ class SwooleSuperGlobal
         
         $this->_FILES = $request->files;
         
-        // fixed swoole system bug
-        if (!empty($this->_GET)) {
+        // Swoole leaves REQUEST_URI without the query string, while php-fpm puts it
+        // there. Re-append it — but only when it is really missing, otherwise a
+        // request already carrying "?a=1" would become "/path?a=1?a=1"
+        // (DuckPhp's Pager builds pagination links straight from REQUEST_URI).
+        if (!empty($this->_GET) && strpos((string)$this->_SERVER['REQUEST_URI'], '?') === false) {
             $this->_SERVER['REQUEST_URI'] .= '?'.http_build_query($this->_GET);
         }
         
@@ -81,7 +89,9 @@ class SwooleSuperGlobal
     public static function DefineSuperGlobalContext()
     {
         if (!defined('__SUPERGLOBAL_CONTEXT')) {
-            define('__SUPERGLOBAL_CONTEXT', static::class .'::G');
+            // DuckPhp's own convention is 'DuckPhp\Core\SuperGlobal::_'; mirror it so
+            // the framework can consume this object with zero adapter code.
+            define('__SUPERGLOBAL_CONTEXT', static::class .'::_');
             return true;
         }
         return false;

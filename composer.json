@@ -1,23 +1,39 @@
 {
     "name": "dvaknheo/swoolehttpd",
-    "description": "A Swoole Http Server in 2019",
+    "description": "Run fpm-style PHP - and DuckPhp applications - on Swoole with almost no code changes",
     "type": "library",
     "keywords": [
         "framework",
-        "swoole"
+        "swoole",
+        "duckphp",
+        "coroutine"
     ],
     "homepage": "https://www.github.com/dvaknheo/swoolehttpd",
     "license": "MIT",
-    "authors": [{
-        "name": "davknheo",
-        "email": "85811616@qq.com"
-    }],
+    "authors": [
+        {
+            "name": "davknheo",
+            "email": "85811616@qq.com"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "SwooleHttpd\\": "src"
         }
     },
     "require": {
-        "php": ">=7.0.0"
+        "php": ">=7.4.0",
+        "ext-swoole": ">=4.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6 || ^10.5"
+    },
+    "suggest": {
+        "dvaknheo/duckphp": "Needed only by SwooleHttpd\\HttpServerForDuckPhp, to run a DuckPhp application on Swoole. See docs/duckphp-integration.md"
+    },
+    "scripts": {
+        "test": "bash dev/test.sh && bash dev/test-duckphp.sh",
+        "test:core": "bash dev/test.sh",
+        "test:duckphp": "bash dev/test-duckphp.sh"
     }
 }

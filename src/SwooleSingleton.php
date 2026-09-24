@@ -25,4 +25,17 @@ trait SwooleSingleton
         }
         return $me;
     }
+    /**
+     * Alias of G(), matching DuckPhp's convention (ClassName::_()).
+     *
+     * __SUPERGLOBAL_CONTEXT points at SwooleSuperGlobal::_ so DuckPhp can consume
+     * our per-request superglobal store without any adapter code on its side.
+     *
+     * @param object|null $object
+     * @return static
+     */
+    public static function _($object = null)
+    {
+        return static::G($object);
+    }
 }
